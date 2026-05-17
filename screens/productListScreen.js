@@ -1,15 +1,16 @@
-// ProductListScreen.js
+// screens/productListScreen.js
 // ─────────────────────────────────────────────────────────────────────────────
-// FEATURES ADDED IN THIS FILE:
+// FEATURES IN THIS FILE:
 //
-// F5  — Shopping Cart     → useCartStore (Zustand + AsyncStorage persist)
-// F11 — Wishlist          → Heart icon saves/removes product from Supabase `wishlist` table
-// F16 — Realtime Stock    → Supabase Realtime postgres_changes subscription
+// F2  — Product Listing   → Fetch products from Supabase with category filters
+// F5  — Shopping Cart     → useCartStore (Zustand + AsyncStorage)
 // F8  — Offline Browsing  → expo-file-system cache
-// F13 — Dark/Light Mode   → useColorScheme hook
+// F11 — Wishlist          → Heart icon saves/removes from Supabase wishlist table
+// F12 — Battery-Aware     → expo-battery: skip network fetch on critically low battery
+// F13 — Dark/Light Mode   → useColorScheme
 // F14 — Haptic Feedback   → expo-haptics on add-to-cart
-// F18 — Localization     → formatPrice
-// F11 — Battery-Aware Sync → expo-battery (NEW)
+// F16 — Realtime Stock    → Supabase Realtime postgres_changes subscription
+// F18 — Localization      → formatPrice
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect } from 'react'
@@ -22,19 +23,24 @@ import {
   Alert,
   ScrollView,
   useColorScheme,
+  ActivityIndicator,
 } from 'react-native'
 
 import { supabase } from '../lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { appStyles } from '../styles/styles'
-
 import { formatPrice } from '../App'
 
-import useCartStore from '../store/useCartStore'
+// F5 — Cart: useCartStore lives in the same screens/ folder
+import useCartStore from './useCartStore'
+
+// F8 — Offline Browsing: cache to device filesystem
 import * as FileSystem from 'expo-file-system'
+
+// F14 — Haptic Feedback
 import * as Haptics from 'expo-haptics'
 
-// ✅ F11 — Battery-Aware Sync (ADDED)
+// F12 — Battery-Aware Sync
 import * as Battery from 'expo-battery'
 
 const CATEGORIES = ['All', 'Tents', 'Bags', 'Apparel', 'Gear']
@@ -47,28 +53,30 @@ export default function ProductList({ navigation }) {
   const [wishlist, setWishlist] = useState([])
   const [stockMap, setStockMap] = useState({})
 
+  // F5 — Cart
   const addItem = useCartStore((state) => state.addItem)
   const cartItems = useCartStore((state) => state.items)
 
+  // F13 — Dark/Light Mode
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
-
   const colors = {
     background: isDark ? '#0A0A0A' : '#FFFFFF',
     text: isDark ? '#FFFFFF' : '#1A1A1A',
     subtext: isDark ? '#888888' : '#AAAAAA',
     card: isDark ? '#1A1A1A' : '#FAFAFA',
     border: isDark ? '#333333' : '#F0F0F0',
-    chip: isDark ? '#1A1A1A' : '#FFFFFF',
     chipActive: isDark ? '#FFFFFF' : '#1A1A1A',
     chipTextActive: isDark ? '#000000' : '#FFFFFF',
   }
 
+  // Refetch products whenever selected category changes
   useEffect(() => {
     fetchProducts()
     fetchWishlist()
   }, [selectedCategory])
 
+  // F16 — Realtime stock subscription
   useEffect(() => {
     const channel = supabase
       .channel('realtime-stock')
@@ -78,10 +86,7 @@ export default function ProductList({ navigation }) {
         (payload) => {
           const updated = payload.new
           if (updated && updated.id) {
-            setStockMap((prev) => ({
-              ...prev,
-              [updated.id]: updated.stock,
-            }))
+            setStockMap((prev) => ({ ...prev, [updated.id]: updated.stock }))
           }
         }
       )
@@ -92,6 +97,7 @@ export default function ProductList({ navigation }) {
     }
   }, [])
 
+  // ─── Logout ───────────────────────────────────────────────────────────────
   const handleLogout = async () => {
     try {
       const { error } = await supabase.auth.signOut()
@@ -101,41 +107,33 @@ export default function ProductList({ navigation }) {
     }
   }
 
-  // ─────────────────────────────────────────────────────────────
-  // F11 — Battery-Aware Sync (ADDED LOGIC)
-  // ─────────────────────────────────────────────────────────────
+  // ─── F8 + F12: Fetch with battery awareness + file-system cache ───────────
   async function fetchProducts() {
     try {
+      // F12 — Check battery before hitting network
       const batteryLevel = await Battery.getBatteryLevelAsync()
       const batteryState = await Battery.getBatteryStateAsync()
-
       const isCharging =
         batteryState === Battery.BatteryState.CHARGING ||
         batteryState === Battery.BatteryState.FULL
 
-      // If low battery → skip network
+      // Skip network on low battery; serve cached data instead
       if (batteryLevel < 0.15 && !isCharging) {
         const fileInfo = await FileSystem.getInfoAsync(CACHE_PATH)
-
         if (fileInfo.exists) {
           const cached = await FileSystem.readAsStringAsync(CACHE_PATH, {
             encoding: FileSystem.EncodingType.UTF8,
           })
-
           setProducts(JSON.parse(cached))
-
-          Alert.alert(
-            'Battery Saver',
-            'Low battery detected. Showing cached products.'
-          )
+          Alert.alert('Battery Saver', 'Low battery detected. Showing cached products.')
         }
-
         setLoading(false)
         return
       }
 
       setLoading(true)
 
+      // F2 — Fetch products from Supabase with optional category filter
       let query = supabase
         .from('products')
         .select('id, name, price, category, image_url, stock')
@@ -150,21 +148,21 @@ export default function ProductList({ navigation }) {
       if (data) {
         setProducts(data)
 
+        // Populate initial stock map from fetched data
         const initialStock = {}
         data.forEach((p) => {
           initialStock[p.id] = p.stock
         })
         setStockMap(initialStock)
 
-        await FileSystem.writeAsStringAsync(
-          CACHE_PATH,
-          JSON.stringify(data),
-          { encoding: FileSystem.EncodingType.UTF8 }
-        )
+        // F8 — Write to file-system cache for offline use
+        await FileSystem.writeAsStringAsync(CACHE_PATH, JSON.stringify(data), {
+          encoding: FileSystem.EncodingType.UTF8,
+        })
       }
     } catch (error) {
+      // F8 — On network error, fall back to cached data if available
       const fileInfo = await FileSystem.getInfoAsync(CACHE_PATH)
-
       if (fileInfo.exists) {
         const cached = await FileSystem.readAsStringAsync(CACHE_PATH, {
           encoding: FileSystem.EncodingType.UTF8,
@@ -178,11 +176,11 @@ export default function ProductList({ navigation }) {
     }
   }
 
+  // ─── F11: Fetch user wishlist ─────────────────────────────────────────────
   async function fetchWishlist() {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-
     if (!user) return
 
     const { data, error } = await supabase
@@ -195,11 +193,11 @@ export default function ProductList({ navigation }) {
     }
   }
 
+  // ─── F11: Toggle wishlist ─────────────────────────────────────────────────
   async function toggleWishlist(productId) {
     const {
       data: { user },
     } = await supabase.auth.getUser()
-
     if (!user) return
 
     if (wishlist.includes(productId)) {
@@ -208,22 +206,20 @@ export default function ProductList({ navigation }) {
         .delete()
         .eq('user_id', user.id)
         .eq('product_id', productId)
-
       setWishlist((prev) => prev.filter((id) => id !== productId))
     } else {
-      await supabase
-        .from('wishlist')
-        .insert({ user_id: user.id, product_id: productId })
-
+      await supabase.from('wishlist').insert({ user_id: user.id, product_id: productId })
       setWishlist((prev) => [...prev, productId])
     }
   }
 
+  // ─── F5 + F14: Add to cart ───────────────────────────────────────────────
   function handleAddToCart(product) {
     addItem(product)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
   }
 
+  // ─── Product card renderer ────────────────────────────────────────────────
   function renderProduct({ item }) {
     const isWishlisted = wishlist.includes(item.id)
     const currentStock = stockMap[item.id] ?? item.stock
@@ -238,13 +234,12 @@ export default function ProductList({ navigation }) {
             resizeMode="cover"
           />
 
+          {/* F16 — Stock badge */}
           {currentStock !== undefined && (
             <View
               style={[
                 appStyles.stockBadge,
-                {
-                  backgroundColor: isOutOfStock ? '#CC0000' : '#476774',
-                },
+                { backgroundColor: isOutOfStock ? '#CC0000' : '#476774' },
               ]}
             >
               <Text style={appStyles.stockBadgeText}>
@@ -253,6 +248,7 @@ export default function ProductList({ navigation }) {
             </View>
           )}
 
+          {/* F11 — Wishlist heart */}
           <TouchableOpacity
             onPress={() => toggleWishlist(item.id)}
             style={appStyles.wishlistBtn}
@@ -269,23 +265,19 @@ export default function ProductList({ navigation }) {
           <Text style={[appStyles.productCategory, { color: colors.subtext }]}>
             {item.category}
           </Text>
-
-          <Text style={[appStyles.productName, { color: colors.text }]}>
-            {item.name}
-          </Text>
-
+          <Text style={[appStyles.productName, { color: colors.text }]}>{item.name}</Text>
+          {/* F18 — formatPrice */}
           <Text style={[appStyles.productPrice, { color: colors.text }]}>
             {formatPrice(item.price)}
           </Text>
 
+          {/* F5 — Add to cart */}
           <TouchableOpacity
             onPress={() => handleAddToCart(item)}
             disabled={isOutOfStock}
             style={[
               appStyles.addToCartBtn,
-              {
-                backgroundColor: isOutOfStock ? '#CCCCCC' : '#1A1A1A',
-              },
+              { backgroundColor: isOutOfStock ? '#CCCCCC' : '#1A1A1A' },
             ]}
           >
             <Text style={appStyles.addToCartText}>
@@ -299,39 +291,34 @@ export default function ProductList({ navigation }) {
 
   return (
     <View style={[appStyles.container, { backgroundColor: colors.background }]}>
+
+      {/* ─── Header ──────────────────────────────────────────────── */}
       <View style={appStyles.header}>
         <View style={{ flex: 1, alignItems: 'flex-start' }}>
-          <TouchableOpacity
-            style={appStyles.backBtn}
-            onPress={handleLogout}
-          >
-            <Ionicons name="chevron-back" size={28} color={colors.text} />
+          <TouchableOpacity style={appStyles.backBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        <Text style={[appStyles.headerTitle, { color: colors.text }]}>
-          Shop
-        </Text>
+        <Text style={[appStyles.headerTitle, { color: colors.text }]}>Shop</Text>
 
         <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'flex-end', gap: 12 }}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Barcode')}
-          >
+          {/* F4 — Navigate to barcode scanner */}
+          <TouchableOpacity onPress={() => navigation.navigate('Barcode')}>
             <Ionicons name="barcode-outline" size={24} color={colors.text} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => navigation.navigate('StoreLocator')}
-          >
+          {/* F7 — Navigate to store locator */}
+          <TouchableOpacity onPress={() => navigation.navigate('StoreLocator')}>
             <Ionicons name="location-outline" size={24} color={colors.text} />
           </TouchableOpacity>
 
+          {/* F5 — Cart icon with badge */}
           <TouchableOpacity
             style={{ padding: 4 }}
             onPress={() => navigation.navigate('Cart')}
           >
             <Ionicons name="bag-outline" size={24} color={colors.text} />
-
             {cartItems.length > 0 && (
               <View style={appStyles.cartBadge}>
                 <Text style={appStyles.cartBadgeText}>
@@ -343,23 +330,46 @@ export default function ProductList({ navigation }) {
         </View>
       </View>
 
+      {/* ─── Category filter chips ────────────────────────────────── */}
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {CATEGORIES.map((cat) => (
-            <TouchableOpacity
-              key={cat}
-              onPress={() => setSelectedCategory(cat)}
-              style={appStyles.filterChip}
-            >
-              <Text>{cat}</Text>
-            </TouchableOpacity>
-          ))}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={appStyles.filterContent}
+          style={{ paddingVertical: 12 }}
+        >
+          {CATEGORIES.map((cat) => {
+            const isActive = selectedCategory === cat
+            return (
+              <TouchableOpacity
+                key={cat}
+                onPress={() => setSelectedCategory(cat)}
+                style={[
+                  appStyles.filterChip,
+                  isActive && appStyles.filterChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    appStyles.filterChipText,
+                    isActive && appStyles.filterChipTextActive,
+                  ]}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            )
+          })}
         </ScrollView>
       </View>
 
+      {/* ─── Product Grid ─────────────────────────────────────────── */}
       {loading ? (
         <View style={appStyles.loadingContainer}>
-          <Text>LOADING</Text>
+          <ActivityIndicator color={colors.text} />
+          <Text style={[appStyles.loadingText, { color: colors.subtext, marginTop: 12 }]}>
+            LOADING
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -367,6 +377,9 @@ export default function ProductList({ navigation }) {
           renderItem={renderProduct}
           keyExtractor={(item) => item.id.toString()}
           numColumns={2}
+          columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 12 }}
+          contentContainerStyle={{ paddingVertical: 16, paddingBottom: 32 }}
+          showsVerticalScrollIndicator={false}
         />
       )}
     </View>

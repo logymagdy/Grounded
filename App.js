@@ -6,7 +6,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   useColorScheme,
-  Platform,
 } from 'react-native'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
@@ -21,9 +20,9 @@ import CartScreen from './screens/cartScreen'
 import CheckoutScreen from './screens/checkOutScreen'
 import WishlistScreen from './screens/wishListScreen'
 import OrderHistoryScreen from './screens/OrderHistoryScreen'
-import ProfileScreen from './screens/ProfileScreen'       // NEW
-import BarcodeScreen from './screens/barcodeScreen'       // NEW
-import StoreLocatorScreen from './screens/storeLocatorScreen' // NEW
+import ProfileScreen from './screens/ProfileScreen'
+import BarcodeScreen from './screens/barcodeScreen'
+import StoreLocatorScreen from './screens/storeLocatorScreen'
 
 // F10 — Network
 import * as Network from 'expo-network'
@@ -35,7 +34,6 @@ import * as Linking from 'expo-linking'
 import { getLocales } from 'expo-localization'
 
 // F6 — Push Notifications root listener
-// Source: https://docs.expo.dev/versions/latest/sdk/notifications/
 import * as Notifications from 'expo-notifications'
 
 // ─── F18: Currency formatter ─────────────────────────────────────────────────
@@ -50,12 +48,11 @@ export const formatPrice = (amount) =>
 // ─── F15: Deep Linking prefix ────────────────────────────────────────────────
 const prefix = Linking.createURL('/')
 
-// ─── F6: Notification handler — how to handle foreground notifications ────────
+// ─── F6: Notification handler — foreground behavior ──────────────────────────
 // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
-// setNotificationHandler defines behavior when notification arrives while app is open
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowAlert: true,   // FIX: shouldShowBanner/shouldShowList are invalid keys
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -73,7 +70,6 @@ function ShopStack() {
       <Stack.Screen name="Cart" component={CartScreen} />
       <Stack.Screen name="Checkout" component={CheckoutScreen} />
       <Stack.Screen name="Barcode" component={BarcodeScreen} />
-      {/* F7 — Store Locator accessible from Shop stack */}
       <Stack.Screen name="StoreLocator" component={StoreLocatorScreen} />
     </Stack.Navigator>
   )
@@ -132,8 +128,6 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(true)
 
-  // F6 — Notification listeners refs
-  // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
   const notificationListener = useRef()
   const responseListener = useRef()
 
@@ -162,45 +156,43 @@ export default function App() {
   }
 
   useEffect(() => {
-    // Auth
-    supabase.auth.getClaims().then(({ data: { claims } }) => {
-      if (claims) setUserId(claims.sub)
+    // ─── FIX: supabase.auth.getClaims() does not exist in supabase-js v2.
+    //         getSession() is the correct method — returns { data: { session } } ───
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id ?? null)
       setLoading(false)
     })
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, _session) => {
-      const { data: { claims } } = await supabase.auth.getClaims()
-      if (claims) {
-        setUserId(claims.sub)
-      } else {
-        setUserId(null)
-      }
+    // ─── FIX: onAuthStateChange v2 passes session directly as 2nd arg.
+    //         No secondary getClaims() call needed. ───
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null)
     })
 
-    // F10 — Network polling
+    // F10 — Network polling every 4 s
     const networkInterval = setInterval(async () => {
       const state = await Network.getNetworkStateAsync()
       setIsConnected(state.isConnected && state.isInternetReachable)
     }, 4000)
 
-    // F6 — Notification listeners
-    // notificationListener fires when notification is received while app is foregrounded
-    // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
+    // F6 — Foreground notification received listener
     notificationListener.current =
       Notifications.addNotificationReceivedListener((notification) => {
         console.log('Notification received:', notification)
       })
 
-    // responseListener fires when user taps a notification
+    // F6 — User tapped notification listener
     responseListener.current =
       Notifications.addNotificationResponseReceivedListener((response) => {
         console.log('Notification tapped:', response)
       })
 
     return () => {
-      listener?.subscription?.unsubscribe()
+      // ─── FIX: v2 cleanup is subscription.unsubscribe(), not listener.subscription.unsubscribe() ───
+      subscription?.unsubscribe()
       clearInterval(networkInterval)
-      // F6 — Clean up notification listeners on unmount
       Notifications.removeNotificationSubscription(notificationListener.current)
       Notifications.removeNotificationSubscription(responseListener.current)
     }
@@ -216,7 +208,7 @@ export default function App() {
 
   return (
     <View style={styles.root}>
-      {/* F10 — Network Status Banner */}
+      {/* F10 — Offline banner */}
       {!isConnected && (
         <View style={styles.offlineBanner}>
           <Ionicons name="cloud-offline-outline" size={14} color="#FFFFFF" />

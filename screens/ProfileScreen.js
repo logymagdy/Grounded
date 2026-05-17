@@ -11,7 +11,7 @@
 //                              sends local demo notification
 //                              Source: https://docs.expo.dev/versions/latest/sdk/notifications/
 //
-// F13 — Dark/Light Mode      → useColorScheme from react-native
+// F13 — Dark/Light Mode      → useColorScheme
 // F14 — Haptic Feedback      → expo-haptics on upload success
 // F18 — Localization         → formatPrice from App.js
 // ─────────────────────────────────────────────────────────────────────────────
@@ -32,11 +32,9 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
 
 // F3 — Product Image Upload
-// Source: https://docs.expo.dev/versions/latest/sdk/image-picker/
 import * as ImagePicker from 'expo-image-picker'
 
 // F6 — Push Notifications
-// Source: https://docs.expo.dev/versions/latest/sdk/notifications/
 import * as Notifications from 'expo-notifications'
 import * as Device from 'expo-device'
 
@@ -46,7 +44,7 @@ import * as Haptics from 'expo-haptics'
 // F18 — Localization
 import { formatPrice } from '../App'
 
-export default function ProfileScreen({ navigation }) {
+export default function ProfileScreen() {
   const [user, setUser] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [imageUri, setImageUri] = useState(null)
@@ -67,25 +65,19 @@ export default function ProfileScreen({ navigation }) {
   }
 
   useEffect(() => {
-    // Get current user info
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
     })
   }, [])
 
   // ─── F3: Pick image from device library ──────────────────────────────────
-  // Source: https://docs.expo.dev/versions/latest/sdk/image-picker/
-  // ImagePicker.launchImageLibraryAsync opens native photo picker
   async function pickImage() {
-    // Request media library permissions first
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Please allow access to your photo library.')
       return
     }
 
-    // Launch native image picker
-    // Source: https://docs.expo.dev/versions/latest/sdk/image-picker/
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -93,15 +85,12 @@ export default function ProfileScreen({ navigation }) {
       quality: 0.8,
     })
 
-    // If user did not cancel, store the selected image URI
     if (!result.canceled) {
       setImageUri(result.assets[0].uri)
     }
   }
 
-  // ─── F3: Upload image to Supabase Storage + save product record ──────────
-  // Source: https://docs.expo.dev/versions/latest/sdk/image-picker/
-  //         https://supabase.com/docs/reference/javascript/storage-from-upload
+  // ─── F3: Upload image to Supabase Storage + insert product record ─────────
   async function handleUploadProduct() {
     if (!imageUri || !productName.trim() || !productPrice.trim()) {
       Alert.alert('Missing Info', 'Please fill in all fields and select an image.')
@@ -111,19 +100,15 @@ export default function ProfileScreen({ navigation }) {
     try {
       setUploading(true)
 
-      // Convert image URI to a Blob for Supabase Storage upload
-      // This pattern is from Supabase Expo React Native tutorial
-      // Source: https://supabase.com/docs/guides/getting-started/tutorials/with-expo-react-native
+      // Convert URI → Blob for upload
       const response = await fetch(imageUri)
       const blob = await response.blob()
 
-      // Build unique file path using timestamp
       const fileExt = imageUri.split('.').pop()
       const fileName = `${Date.now()}.${fileExt}`
       const filePath = `products/${fileName}`
 
-      // F3 — Upload to Supabase Storage bucket 'product-images'
-      // Source: https://supabase.com/docs/reference/javascript/storage-from-upload
+      // Upload to Supabase Storage bucket 'product-images'
       const { error: uploadError } = await supabase.storage
         .from('product-images')
         .upload(filePath, blob, {
@@ -134,27 +119,23 @@ export default function ProfileScreen({ navigation }) {
       if (uploadError) throw uploadError
 
       // Get public URL of uploaded image
-      // Source: https://supabase.com/docs/reference/javascript/storage-from-getpublicurl
       const { data: urlData } = supabase.storage
         .from('product-images')
         .getPublicUrl(filePath)
 
       const publicUrl = urlData.publicUrl
 
-      // F3 — Save product record to Supabase products table
-      // Source: https://supabase.com/docs/reference/javascript/insert
-      const { error: insertError } = await supabase
-        .from('products')
-        .insert({
-          name: productName.trim(),
-          price: parseFloat(productPrice),
-          category: productCategory.trim() || 'Gear',
-          image_url: publicUrl,
-        })
+      // Insert product record into Supabase products table
+      const { error: insertError } = await supabase.from('products').insert({
+        name: productName.trim(),
+        price: parseFloat(productPrice),
+        category: productCategory.trim() || 'Gear',
+        image_url: publicUrl,
+      })
 
       if (insertError) throw insertError
 
-      // F14 — Haptic success on upload
+      // F14 — Haptic success
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
       // Reset form
@@ -172,16 +153,12 @@ export default function ProfileScreen({ navigation }) {
   }
 
   // ─── F6: Register for Push Notifications ─────────────────────────────────
-  // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
-  // Must run on a physical device — simulators do not support push tokens
   async function registerForPushNotifications() {
     if (!Device.isDevice) {
       Alert.alert('Physical device required', 'Push notifications only work on real devices.')
       return
     }
 
-    // Request notification permissions
-    // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
     const { status: existingStatus } = await Notifications.getPermissionsAsync()
     let finalStatus = existingStatus
 
@@ -196,12 +173,10 @@ export default function ProfileScreen({ navigation }) {
     }
 
     // Get Expo push token
-    // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
     const tokenData = await Notifications.getExpoPushTokenAsync()
     const token = tokenData.data
 
     // Android requires a notification channel
-    // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
@@ -212,8 +187,10 @@ export default function ProfileScreen({ navigation }) {
     }
 
     // Save token to Supabase push_tokens table
-    // Source: https://supabase.com/docs/reference/javascript/insert
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser()
+
     if (currentUser) {
       await supabase
         .from('push_tokens')
@@ -222,14 +199,14 @@ export default function ProfileScreen({ navigation }) {
 
     setNotifRegistered(true)
 
-    // F6 — Schedule a local demo notification to confirm registration works
-    // Source: https://docs.expo.dev/versions/latest/sdk/notifications/
+    // F6 — Schedule a local demo notification to confirm setup works
+    // FIX: trigger must use { type, seconds, repeats } object — { seconds: 2 } alone is deprecated
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Notifications enabled!',
         body: 'You will now receive order updates and promotions.',
       },
-      trigger: { seconds: 2 },
+      trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 2, repeats: false },
     })
   }
 
@@ -246,7 +223,16 @@ export default function ProfileScreen({ navigation }) {
       showsVerticalScrollIndicator={false}
     >
       {/* ─── Header ────────────────────────────────────────────────── */}
-      <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 }}>
+      <Text
+        style={{
+          fontSize: 18,
+          fontWeight: '700',
+          color: colors.text,
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          marginBottom: 6,
+        }}
+      >
         Profile
       </Text>
       {user && (
@@ -256,7 +242,16 @@ export default function ProfileScreen({ navigation }) {
       )}
 
       {/* ─── F6: Push Notifications ──────────────────────────────── */}
-      <Text style={{ fontSize: 11, letterSpacing: 1.4, fontWeight: '700', color: colors.subtext, marginBottom: 12, textTransform: 'uppercase' }}>
+      <Text
+        style={{
+          fontSize: 11,
+          letterSpacing: 1.4,
+          fontWeight: '700',
+          color: colors.subtext,
+          marginBottom: 12,
+          textTransform: 'uppercase',
+        }}
+      >
         Notifications
       </Text>
       <TouchableOpacity
@@ -283,8 +278,17 @@ export default function ProfileScreen({ navigation }) {
         </Text>
       </TouchableOpacity>
 
-      {/* ─── F3: Vendor Product Upload ───────────────────────────── */}
-      <Text style={{ fontSize: 11, letterSpacing: 1.4, fontWeight: '700', color: colors.subtext, marginBottom: 12, textTransform: 'uppercase' }}>
+      {/* ─── F3: Product Upload ──────────────────────────────────── */}
+      <Text
+        style={{
+          fontSize: 11,
+          letterSpacing: 1.4,
+          fontWeight: '700',
+          color: colors.subtext,
+          marginBottom: 12,
+          textTransform: 'uppercase',
+        }}
+      >
         Upload Product
       </Text>
 
@@ -313,7 +317,15 @@ export default function ProfileScreen({ navigation }) {
         ) : (
           <View style={{ alignItems: 'center' }}>
             <Ionicons name="image-outline" size={32} color={colors.subtext} />
-            <Text style={{ marginTop: 8, fontSize: 11, color: colors.subtext, letterSpacing: 1, fontWeight: '600' }}>
+            <Text
+              style={{
+                marginTop: 8,
+                fontSize: 11,
+                color: colors.subtext,
+                letterSpacing: 1,
+                fontWeight: '600',
+              }}
+            >
               TAP TO SELECT IMAGE
             </Text>
           </View>
@@ -321,7 +333,16 @@ export default function ProfileScreen({ navigation }) {
       </TouchableOpacity>
 
       {/* Product Name */}
-      <Text style={{ fontSize: 11, color: colors.subtext, letterSpacing: 1, fontWeight: '600', marginBottom: 6, textTransform: 'uppercase' }}>
+      <Text
+        style={{
+          fontSize: 11,
+          color: colors.subtext,
+          letterSpacing: 1,
+          fontWeight: '600',
+          marginBottom: 6,
+          textTransform: 'uppercase',
+        }}
+      >
         Product Name
       </Text>
       <TextInput
@@ -330,14 +351,29 @@ export default function ProfileScreen({ navigation }) {
         placeholder="e.g. Cave Tent"
         placeholderTextColor={colors.subtext}
         style={{
-          height: 50, borderWidth: 1, borderColor: colors.border,
-          borderRadius: 10, paddingHorizontal: 14, fontSize: 15,
-          color: colors.text, backgroundColor: colors.card, marginBottom: 14,
+          height: 50,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 10,
+          paddingHorizontal: 14,
+          fontSize: 15,
+          color: colors.text,
+          backgroundColor: colors.card,
+          marginBottom: 14,
         }}
       />
 
       {/* Product Price */}
-      <Text style={{ fontSize: 11, color: colors.subtext, letterSpacing: 1, fontWeight: '600', marginBottom: 6, textTransform: 'uppercase' }}>
+      <Text
+        style={{
+          fontSize: 11,
+          color: colors.subtext,
+          letterSpacing: 1,
+          fontWeight: '600',
+          marginBottom: 6,
+          textTransform: 'uppercase',
+        }}
+      >
         Price
       </Text>
       <TextInput
@@ -347,14 +383,29 @@ export default function ProfileScreen({ navigation }) {
         placeholderTextColor={colors.subtext}
         keyboardType="decimal-pad"
         style={{
-          height: 50, borderWidth: 1, borderColor: colors.border,
-          borderRadius: 10, paddingHorizontal: 14, fontSize: 15,
-          color: colors.text, backgroundColor: colors.card, marginBottom: 14,
+          height: 50,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 10,
+          paddingHorizontal: 14,
+          fontSize: 15,
+          color: colors.text,
+          backgroundColor: colors.card,
+          marginBottom: 14,
         }}
       />
 
       {/* Product Category */}
-      <Text style={{ fontSize: 11, color: colors.subtext, letterSpacing: 1, fontWeight: '600', marginBottom: 6, textTransform: 'uppercase' }}>
+      <Text
+        style={{
+          fontSize: 11,
+          color: colors.subtext,
+          letterSpacing: 1,
+          fontWeight: '600',
+          marginBottom: 6,
+          textTransform: 'uppercase',
+        }}
+      >
         Category
       </Text>
       <TextInput
@@ -363,9 +414,15 @@ export default function ProfileScreen({ navigation }) {
         placeholder="e.g. Tents"
         placeholderTextColor={colors.subtext}
         style={{
-          height: 50, borderWidth: 1, borderColor: colors.border,
-          borderRadius: 10, paddingHorizontal: 14, fontSize: 15,
-          color: colors.text, backgroundColor: colors.card, marginBottom: 20,
+          height: 50,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 10,
+          paddingHorizontal: 14,
+          fontSize: 15,
+          color: colors.text,
+          backgroundColor: colors.card,
+          marginBottom: 20,
         }}
       />
 

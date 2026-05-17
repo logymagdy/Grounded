@@ -1,15 +1,11 @@
-// screens/CartScreen.js
+// screens/cartScreen.js
 // ─────────────────────────────────────────────────────────────────────────────
 // FEATURES IN THIS FILE:
 //
 // F5  — Shopping Cart     → useCartStore (Zustand + AsyncStorage)
-//                            Source: https://docs.pmnd.rs/zustand/getting-started/introduction
-//
-// F13 — Dark/Light Mode   → useColorScheme from react-native
-//                            Source: https://reactnative.dev/docs/usecolorscheme
-//
+// F13 — Dark/Light Mode   → useColorScheme
 // F14 — Haptic Feedback   → expo-haptics on remove item and quantity change
-//                            Source: https://docs.expo.dev/versions/latest/sdk/haptics/
+// F18 — Localization      → formatPrice for correct currency display
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React from 'react'
@@ -19,20 +15,22 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
-  useColorScheme,   // F13 — Dark/Light Mode
+  useColorScheme,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 
-// F5 — Cart: Zustand store
+// F5 — Cart: useCartStore is in the same screens/ folder
 import useCartStore from './useCartStore'
 
 // F14 — Haptic Feedback
-// Source: https://docs.expo.dev/versions/latest/sdk/haptics/
 import * as Haptics from 'expo-haptics'
+
+// F18 — Localization
+import { formatPrice } from '../App'
 
 export default function CartScreen({ navigation }) {
 
-  // F5 — Cart: read items and actions from Zustand store
+  // F5 — Cart state from Zustand
   const items = useCartStore((state) => state.items)
   const removeItem = useCartStore((state) => state.removeItem)
   const updateQuantity = useCartStore((state) => state.updateQuantity)
@@ -48,17 +46,15 @@ export default function CartScreen({ navigation }) {
     border: isDark ? '#333333' : '#F0F0F0',
   }
 
-  // Calculate order total from all items × their quantities
   const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
-  // F14 — Haptic on remove item: notification feedback (warning level)
-  // Source: https://docs.expo.dev/versions/latest/sdk/haptics/
+  // F14 — Haptic warning on remove
   function handleRemove(id) {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
     removeItem(id)
   }
 
-  // F14 — Haptic on quantity change: light impact feedback
+  // F14 — Haptic light on quantity change
   function handleQuantityChange(id, qty) {
     if (qty < 1) {
       handleRemove(id)
@@ -79,62 +75,96 @@ export default function CartScreen({ navigation }) {
           overflow: 'hidden',
         }}
       >
-        {/* Product Image */}
+        {/* Product image */}
         <Image
           source={{ uri: item.image_url }}
           style={{ width: 90, height: 90 }}
           resizeMode="cover"
         />
 
-        {/* Product Info */}
+        {/* Product info */}
         <View style={{ flex: 1, padding: 12, justifyContent: 'space-between' }}>
           <View>
-            <Text style={{ fontSize: 9, letterSpacing: 1.2, color: colors.subtext, fontWeight: '600', textTransform: 'uppercase', marginBottom: 3 }}>
+            <Text
+              style={{
+                fontSize: 9,
+                letterSpacing: 1.2,
+                color: colors.subtext,
+                fontWeight: '600',
+                textTransform: 'uppercase',
+                marginBottom: 3,
+              }}
+            >
               {item.category}
             </Text>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text, lineHeight: 18 }}>
+            <Text
+              style={{ fontSize: 13, fontWeight: '600', color: colors.text, lineHeight: 18 }}
+            >
               {item.name}
             </Text>
           </View>
 
-          {/* Quantity Controls + Price Row */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            {/* F5 — Quantity stepper using updateQuantity from Zustand */}
+          {/* Quantity stepper + price */}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            {/* F5 — Quantity stepper */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <TouchableOpacity
                 onPress={() => handleQuantityChange(item.id, item.quantity - 1)}
                 style={{
-                  width: 26, height: 26, borderRadius: 13,
-                  borderWidth: 1, borderColor: colors.border,
-                  alignItems: 'center', justifyContent: 'center',
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <Ionicons name="remove" size={14} color={colors.text} />
               </TouchableOpacity>
 
-              <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, minWidth: 16, textAlign: 'center' }}>
+              <Text
+                style={{
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: colors.text,
+                  minWidth: 16,
+                  textAlign: 'center',
+                }}
+              >
                 {item.quantity}
               </Text>
 
               <TouchableOpacity
                 onPress={() => handleQuantityChange(item.id, item.quantity + 1)}
                 style={{
-                  width: 26, height: 26, borderRadius: 13,
-                  borderWidth: 1, borderColor: colors.border,
-                  alignItems: 'center', justifyContent: 'center',
+                  width: 26,
+                  height: 26,
+                  borderRadius: 13,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}
               >
                 <Ionicons name="add" size={14} color={colors.text} />
               </TouchableOpacity>
             </View>
 
+            {/* F18 — formatPrice */}
             <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>
-              ${(item.price * item.quantity).toFixed(2)}
+              {formatPrice(item.price * item.quantity)}
             </Text>
           </View>
         </View>
 
-        {/* F5 — Remove button: calls removeItem from Zustand store */}
+        {/* F5 — Remove button */}
         <TouchableOpacity
           onPress={() => handleRemove(item.id)}
           style={{ padding: 10, justifyContent: 'flex-start' }}
@@ -146,8 +176,14 @@ export default function CartScreen({ navigation }) {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background, paddingHorizontal: 20, paddingTop: 50 }}>
-
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.background,
+        paddingHorizontal: 20,
+        paddingTop: 50,
+      }}
+    >
       {/* ─── Header ──────────────────────────────────────────────── */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
         <TouchableOpacity
@@ -157,10 +193,17 @@ export default function CartScreen({ navigation }) {
         >
           <Ionicons name="chevron-back" size={28} color={colors.text} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, letterSpacing: 1, textTransform: 'uppercase' }}>
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: '700',
+            color: colors.text,
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+          }}
+        >
           Cart
         </Text>
-        {/* Item count */}
         <Text style={{ marginLeft: 8, fontSize: 12, color: colors.subtext, fontWeight: '600' }}>
           ({items.reduce((s, i) => s + i.quantity, 0)} items)
         </Text>
@@ -170,14 +213,21 @@ export default function CartScreen({ navigation }) {
       {items.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="bag-outline" size={48} color={colors.subtext} />
-          <Text style={{ marginTop: 16, fontSize: 13, color: colors.subtext, letterSpacing: 1.2, fontWeight: '600' }}>
+          <Text
+            style={{
+              marginTop: 16,
+              fontSize: 13,
+              color: colors.subtext,
+              letterSpacing: 1.2,
+              fontWeight: '600',
+            }}
+          >
             YOUR CART IS EMPTY
           </Text>
         </View>
       ) : (
         <>
-          {/* ─── Cart Items List ──────────────────────────────────── */}
-          {/* F5 — FlatList renders all items from Zustand store */}
+          {/* F5 — Cart items list */}
           <FlatList
             data={items}
             renderItem={renderItem}
@@ -187,22 +237,44 @@ export default function CartScreen({ navigation }) {
           />
 
           {/* ─── Order Summary ────────────────────────────────────── */}
-          <View style={{
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            paddingTop: 16,
-            paddingBottom: 32,
-          }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Text style={{ fontSize: 12, color: colors.subtext, letterSpacing: 1, fontWeight: '600' }}>SUBTOTAL</Text>
-              <Text style={{ fontSize: 12, color: colors.subtext, fontWeight: '600' }}>${total.toFixed(2)}</Text>
+          <View
+            style={{
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              paddingTop: 16,
+              paddingBottom: 32,
+            }}
+          >
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}
+            >
+              <Text
+                style={{ fontSize: 12, color: colors.subtext, letterSpacing: 1, fontWeight: '600' }}
+              >
+                SUBTOTAL
+              </Text>
+              <Text style={{ fontSize: 12, color: colors.subtext, fontWeight: '600' }}>
+                {formatPrice(total)}
+              </Text>
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, letterSpacing: 0.5 }}>TOTAL</Text>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>${total.toFixed(2)}</Text>
+            <View
+              style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}
+            >
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: colors.text,
+                  letterSpacing: 0.5,
+                }}
+              >
+                TOTAL
+              </Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
+                {formatPrice(total)}
+              </Text>
             </View>
 
-            {/* Navigate to Checkout screen */}
             <TouchableOpacity
               onPress={() => navigation.navigate('Checkout')}
               style={{
@@ -213,7 +285,9 @@ export default function CartScreen({ navigation }) {
                 justifyContent: 'center',
               }}
             >
-              <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700', letterSpacing: 1.5 }}>
+              <Text
+                style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700', letterSpacing: 1.5 }}
+              >
                 PROCEED TO CHECKOUT
               </Text>
             </TouchableOpacity>

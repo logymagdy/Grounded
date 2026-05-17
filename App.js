@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
   offlineBanner: {
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     gap: 8,
     zIndex: 999,
   },

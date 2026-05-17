@@ -1,29 +1,77 @@
 {
   "expo": {
-    "name": "shopApp",
-    "slug": "shopApp",
+    "name": "Grounded",
+    "slug": "grounded",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/zero.png",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/zero.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDMtJ5Hw178dfKysUthqY5r3pjN9SLdXk8"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Grounded uses your location to find nearby stores."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Grounded needs camera access to scan product barcodes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Grounded needs access to your photos to upload product images.",
+          "cameraPermission": "Grounded needs camera access to capture product photos."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/zero.png",
+          "color": "#1A1A1A",
+          "sounds": [],
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      "expo-localization"
+    ]
   }
 }

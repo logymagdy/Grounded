@@ -66,12 +66,10 @@ export const appStyles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // ─── Account / Profile ──────────────────────────────────────
+  // ─── Account / Profile & Common Container ──────────────────
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
-    paddingTop: 40,
   },
   verticallySpaced: {
     paddingTop: 4,
@@ -109,11 +107,58 @@ export const appStyles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // ─── Product Feed ───────────────────────────────────────────
+  // ─── App Global Header ─────────────────────────────────────
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 12,
+  },
+  backBtn: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+
+  // ─── Category Filter Chips ──────────────────────────────────
+  filterContent: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  filterChipActive: {
+    backgroundColor: '#1A1A1A',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#888888',
+  },
+  filterChipTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // ─── Product Feed Grid ──────────────────────────────────────
   productCard: {
     width: '48.5%',
     backgroundColor: '#FAFAFA',
     marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
   },
   productImage: {
     width: '100%',
@@ -123,15 +168,40 @@ export const appStyles = StyleSheet.create({
   productInfo: {
     paddingTop: 8,
     paddingBottom: 12,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
+  },
+  productCategory: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  productName: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
   },
   productPrice: {
     fontSize: 13,
     fontWeight: '700',
     color: '#1A1A1A',
+    marginBottom: 10,
+  },
+  addToCartBtn: {
+    height: 36,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addToCartText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 
-  // ─── Functional Elements (Cart/Wishlist/Stock) ──────────────
+  // ─── Functional Badge Elements ──────────────────────────────
   stockBadge: {
     position: 'absolute',
     top: 8,
@@ -139,6 +209,12 @@ export const appStyles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+  },
+  stockBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   wishlistBtn: {
     position: 'absolute',
@@ -150,13 +226,31 @@ export const appStyles = StyleSheet.create({
   },
   cartBadge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
+    top: -2,
+    right: -2,
     backgroundColor: '#476774',
     borderRadius: 8,
     minWidth: 16,
     height: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 2,
+  },
+  cartBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+
+  // ─── Fallback Loading Wrapper ──────────────────────────────
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
   },
 })

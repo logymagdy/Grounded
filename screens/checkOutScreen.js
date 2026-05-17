@@ -1,17 +1,3 @@
-// screens/checkOutScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURES IN THIS FILE:
-//
-// F5  — Shopping Cart     → useCartStore items + clearCart after order
-// F9  — Secure Checkout   → Saves order record to Supabase
-//                           Source: https://supabase.com/docs/reference/javascript/insert
-// F13 — Dark/Light Mode   → useColorScheme
-// F14 — Haptic Feedback   → expo-haptics success on order placed
-// F17 — Receipt PDF       → expo-print + expo-sharing
-//                           Source: https://docs.expo.dev/versions/latest/sdk/print/
-//                                   https://docs.expo.dev/versions/latest/sdk/sharing/
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useState } from 'react'
 import {
   View,
@@ -36,7 +22,7 @@ import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 
 // F18 — Localization
-import { formatPrice } from '../App'
+import { formatPrice } from '../lib/utils'
 
 export default function CheckoutScreen({ navigation }) {
 
@@ -62,7 +48,6 @@ export default function CheckoutScreen({ navigation }) {
   const [placing, setPlacing] = useState(false)
 
   // ─── F17: Generate and share PDF receipt ─────────────────────────────────
-  // Source: https://docs.expo.dev/versions/latest/sdk/print/
   async function generateReceipt(orderId) {
     const itemRows = items
       .map(
@@ -70,7 +55,7 @@ export default function CheckoutScreen({ navigation }) {
           `<tr>
             <td>${i.name}</td>
             <td style="text-align:center">${i.quantity}</td>
-            <td style="text-align:right">$${(i.price * i.quantity).toFixed(2)}</td>
+            <td style="text-align:right">${formatPrice(i.price * i.quantity)}</td>
           </tr>`
       )
       .join('')
@@ -97,16 +82,16 @@ export default function CheckoutScreen({ navigation }) {
           </table>
           <hr/>
           <p style="text-align:right; font-size: 18px; font-weight: bold;">
-            TOTAL: $${total.toFixed(2)}
+            TOTAL: ${formatPrice(total)}
           </p>
         </body>
       </html>
     `
 
-    // F17 — Convert HTML → PDF file on device
+    // Convert HTML → PDF file on device
     const { uri } = await Print.printToFileAsync({ html })
 
-    // F17 — Open native share sheet to save/send the PDF
+    // Open native share sheet to save/send the PDF
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
       dialogTitle: 'Save your receipt',
@@ -297,7 +282,7 @@ export default function CheckoutScreen({ navigation }) {
             fontSize: 15,
             color: colors.text,
             backgroundColor: colors.card,
-            marginBottom: 28,
+            marginBottom: 24,
           }}
         />
 
@@ -315,46 +300,65 @@ export default function CheckoutScreen({ navigation }) {
           Order Summary
         </Text>
 
-        {items.map((item) => (
-          <View
-            key={item.id}
-            style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}
-          >
-            <Text
-              style={{ fontSize: 13, color: colors.text, flex: 1 }}
-              numberOfLines={1}
+        <View
+          style={{
+            backgroundColor: colors.card,
+            borderRadius: 12,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: colors.border,
+            marginBottom: 32,
+          }}
+        >
+          {items.map((item) => (
+            <View
+              key={item.id}
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                marginBottom: 12,
+              }}
             >
-              {item.name} × {item.quantity}
-            </Text>
-            <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>
-              {formatPrice(item.price * item.quantity)}
+              <Text style={{ color: colors.text, fontSize: 14, flex: 1 }}>
+                {item.name} <Text style={{ color: colors.subtext }}>x{item.quantity}</Text>
+              </Text>
+              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>
+                {formatPrice(item.price * item.quantity)}
+              </Text>
+            </View>
+          ))}
+
+          <View
+            style={{
+              borderTopWidth: 1,
+              borderTopColor: colors.border,
+              paddingTop: 12,
+              marginTop: 4,
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+            }}
+          >
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>Total</Text>
+            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>
+              {formatPrice(total)}
             </Text>
           </View>
-        ))}
-
-        <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 14 }} />
-
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 32 }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>TOTAL</Text>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>
-            {formatPrice(total)}
-          </Text>
         </View>
 
-        {/* ─── Place Order Button ───────────────────────────────── */}
+        {/* ─── Checkout Button ──────────────────────────────────── */}
         <TouchableOpacity
           onPress={handlePlaceOrder}
-          disabled={placing}
+          disabled={placing || items.length === 0}
           style={{
-            backgroundColor: placing ? '#888888' : '#1A1A1A',
-            height: 54,
-            borderRadius: 30,
+            backgroundColor: placing || items.length === 0 ? '#CCCCCC' : '#1A1A1A',
+            height: 55,
+            borderRadius: 10,
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700', letterSpacing: 1.5 }}>
-            {placing ? 'PLACING ORDER...' : 'PLACE ORDER'}
+          <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', letterSpacing: 1 }}>
+            {placing ? 'PROCESSING...' : 'PLACE ORDER'}
           </Text>
         </TouchableOpacity>
       </ScrollView>

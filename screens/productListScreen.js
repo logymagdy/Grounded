@@ -1,18 +1,3 @@
-// screens/productListScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURES IN THIS FILE:
-//
-// F2  — Product Listing   → Fetch products from Supabase with category filters
-// F5  — Shopping Cart     → useCartStore (Zustand + AsyncStorage)
-// F8  — Offline Browsing  → expo-file-system cache
-// F11 — Wishlist          → Heart icon saves/removes from Supabase wishlist table
-// F12 — Battery-Aware     → expo-battery: skip network fetch on critically low battery
-// F13 — Dark/Light Mode   → useColorScheme
-// F14 — Haptic Feedback   → expo-haptics on add-to-cart
-// F16 — Realtime Stock    → Supabase Realtime postgres_changes subscription
-// F18 — Localization      → formatPrice
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useState, useEffect } from 'react'
 import {
   View,
@@ -29,9 +14,9 @@ import {
 import { supabase } from '../lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { appStyles } from '../styles/styles'
-import { formatPrice } from '../App'
+import { formatPrice } from '../lib/utils'
 
-// F5 — Cart: useCartStore lives in the same screens/ folder
+// F5 — Cart: useCartStore lives in screens/ folder
 import useCartStore from './useCartStore'
 
 // F8 — Offline Browsing: cache to device filesystem
@@ -266,7 +251,6 @@ export default function ProductList({ navigation }) {
             {item.category}
           </Text>
           <Text style={[appStyles.productName, { color: colors.text }]}>{item.name}</Text>
-          {/* F18 — formatPrice */}
           <Text style={[appStyles.productPrice, { color: colors.text }]}>
             {formatPrice(item.price)}
           </Text>

@@ -1,16 +1,3 @@
-// store/useCartStore.js
-// ─────────────────────────────────────────────────────────────────────────────
-// F5 — Shopping Cart
-// Source: Zustand docs (https://docs.pmnd.rs/zustand/getting-started/introduction)
-//         AsyncStorage persist middleware (https://docs.pmnd.rs/zustand/integrations/persisting-store-data)
-//
-// What this does:
-//   - Creates a global Zustand store for the cart
-//   - Uses the `persist` middleware with AsyncStorage to save cart across sessions
-//   - Exposes: items[], addItem(product), removeItem(id), updateQuantity(id, qty), clearCart()
-//   - cartCount derived from items array length used for header badge
-// ─────────────────────────────────────────────────────────────────────────────
-
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import AsyncStorage from '@react-native-async-storage/async-storage'

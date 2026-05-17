@@ -30,21 +30,9 @@ import * as Network from 'expo-network'
 // F15 — Deep Linking
 import * as Linking from 'expo-linking'
 
-// F18 — Localization
-import { getLocales } from 'expo-localization'
-
 // F6 — Push Notifications root listener & registration function
 import * as Notifications from 'expo-notifications'
-import { registerForPushNotificationsAsync } from './lib/notifications' // 👈 ADDED IMPORT
-
-// ─── F18: Currency formatter ─────────────────────────────────────────────────
-const deviceLocale = getLocales()[0]
-export const currencyCode = deviceLocale?.regionCode === 'EG' ? 'EGP' : 'USD'
-export const formatPrice = (amount) =>
-  new Intl.NumberFormat(deviceLocale?.languageTag ?? 'en-US', {
-    style: 'currency',
-    currency: currencyCode,
-  }).format(amount)
+import { registerForPushNotificationsAsync } from './lib/notifications'
 
 // ─── F15: Deep Linking prefix ────────────────────────────────────────────────
 const prefix = Linking.createURL('/')
@@ -162,7 +150,6 @@ export default function App() {
       setUserId(currentUserId)
       setLoading(false)
       
-      // Trigger token generation if user is already logged in on launch
       if (currentUserId) {
         registerForPushNotificationsAsync()
       }
@@ -175,7 +162,6 @@ export default function App() {
       const currentUserId = session?.user?.id ?? null
       setUserId(currentUserId)
       
-      // Trigger token generation directly upon a successful login event
       if (currentUserId) {
         registerForPushNotificationsAsync()
       }
@@ -246,7 +232,7 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justify: 'center',
     backgroundColor: '#FFFFFF',
   },
   offlineBanner: {
@@ -255,9 +241,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justify: 'center',
     gap: 8,
-    zIndex: 999, // 👈 FIXED: Removed stray period syntax error
+    zIndex: 999,
   },
   offlineBannerText: {
     color: '#FFFFFF',

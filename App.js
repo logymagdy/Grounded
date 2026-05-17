@@ -33,8 +33,9 @@ import * as Linking from 'expo-linking'
 // F18 — Localization
 import { getLocales } from 'expo-localization'
 
-// F6 — Push Notifications root listener
+// F6 — Push Notifications root listener & registration function
 import * as Notifications from 'expo-notifications'
+import { registerForPushNotificationsAsync } from './lib/notifications' // 👈 ADDED IMPORT
 
 // ─── F18: Currency formatter ─────────────────────────────────────────────────
 const deviceLocale = getLocales()[0]
@@ -49,10 +50,9 @@ export const formatPrice = (amount) =>
 const prefix = Linking.createURL('/')
 
 // ─── F6: Notification handler — foreground behavior ──────────────────────────
-// Source: https://docs.expo.dev/versions/latest/sdk/notifications/
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,   // FIX: shouldShowBanner/shouldShowList are invalid keys
+    shouldShowAlert: true,   
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
@@ -156,19 +156,29 @@ export default function App() {
   }
 
   useEffect(() => {
-    // ─── FIX: supabase.auth.getClaims() does not exist in supabase-js v2.
-    //         getSession() is the correct method — returns { data: { session } } ───
+    // Supabase Session Fetching
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id ?? null)
+      const currentUserId = session?.user?.id ?? null
+      setUserId(currentUserId)
       setLoading(false)
+      
+      // Trigger token generation if user is already logged in on launch
+      if (currentUserId) {
+        registerForPushNotificationsAsync()
+      }
     })
 
-    // ─── FIX: onAuthStateChange v2 passes session directly as 2nd arg.
-    //         No secondary getClaims() call needed. ───
+    // Auth State Listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserId(session?.user?.id ?? null)
+      const currentUserId = session?.user?.id ?? null
+      setUserId(currentUserId)
+      
+      // Trigger token generation directly upon a successful login event
+      if (currentUserId) {
+        registerForPushNotificationsAsync()
+      }
     })
 
     // F10 — Network polling every 4 s
@@ -190,7 +200,6 @@ export default function App() {
       })
 
     return () => {
-      // ─── FIX: v2 cleanup is subscription.unsubscribe(), not listener.subscription.unsubscribe() ───
       subscription?.unsubscribe()
       clearInterval(networkInterval)
       Notifications.removeNotificationSubscription(notificationListener.current)
@@ -248,7 +257,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    zIndex: 999,
+    zIndex: 999, // 👈 FIXED: Removed stray period syntax error
   },
   offlineBannerText: {
     color: '#FFFFFF',

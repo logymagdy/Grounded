@@ -1,21 +1,3 @@
-// screens/ProfileScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURES IN THIS FILE:
-//
-// F3  — Product Image Upload → expo-image-picker picks photo → uploads to
-//                              Supabase Storage → saves product record
-//                              Source: https://docs.expo.dev/versions/latest/sdk/image-picker/
-//
-// F6  — Push Notifications   → expo-notifications registers device token →
-//                              saves to Supabase push_tokens table →
-//                              sends local demo notification
-//                              Source: https://docs.expo.dev/versions/latest/sdk/notifications/
-//
-// F13 — Dark/Light Mode      → useColorScheme
-// F14 — Haptic Feedback      → expo-haptics on upload success
-// F18 — Localization         → formatPrice from App.js
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useState, useEffect } from 'react'
 import {
   View,
@@ -42,7 +24,7 @@ import * as Device from 'expo-device'
 import * as Haptics from 'expo-haptics'
 
 // F18 — Localization
-import { formatPrice } from '../App'
+import { formatPrice } from '../lib/utils'
 
 export default function ProfileScreen() {
   const [user, setUser] = useState(null)

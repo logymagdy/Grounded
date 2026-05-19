@@ -1,16 +1,3 @@
-// screens/OrderHistoryScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURES IN THIS FILE:
-//
-// F12 — Order History     → fetch paginated orders from Supabase
-//                           Source: https://supabase.com/docs/reference/javascript/select
-//                           Pagination: .range() method from supabase-js docs
-//
-// F13 — Dark/Light Mode   → useColorScheme from react-native
-//                           Source: https://reactnative.dev/docs/usecolorscheme
-//
-// F18 — Localization      → formatPrice from App.js for correct currency
-// ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useCallback } from 'react'
 import {
@@ -26,8 +13,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
 import { useFocusEffect } from '@react-navigation/native'
 
-// F18 — Localization: shared formatPrice from App.js
-import { formatPrice } from '../App'
+
+import { formatPrice } from '../lib/utils'
 
 // F12 — Pagination: how many orders to load per page
 const PAGE_SIZE = 10

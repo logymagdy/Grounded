@@ -1,18 +1,3 @@
-// screens/barcodeScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURES IN THIS FILE:
-//
-// F4  — Barcode Scanner   → expo-camera CameraView scans barcodes →
-//                           looks up product in Supabase by barcode field →
-//                           shows result → add to cart
-//                           Source: https://docs.expo.dev/versions/latest/sdk/camera/
-//
-// F5  — Shopping Cart     → useCartStore addItem on scan result
-// F13 — Dark/Light Mode   → useColorScheme
-// F14 — Haptic Feedback   → expo-haptics on successful scan + add to cart
-// F18 — Localization      → formatPrice from App.js
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useState } from 'react'
 import {
   View,
@@ -36,15 +21,13 @@ import useCartStore from './useCartStore'
 // F14 — Haptic Feedback
 import * as Haptics from 'expo-haptics'
 
-// F18 — Localization
-import { formatPrice } from '../App'
+import { formatPrice } from '../lib/utils'
 
 export default function BarcodeScreen({ navigation }) {
   const [scanned, setScanned] = useState(false)
   const [foundProduct, setFoundProduct] = useState(null)
   const [searching, setSearching] = useState(false)
 
-  // F4 — Camera permissions hook
   // Source: https://docs.expo.dev/versions/latest/sdk/camera/
   const [permission, requestPermission] = useCameraPermissions()
 

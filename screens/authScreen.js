@@ -63,7 +63,7 @@ export default function AuthScreen({ navigation }) {
 
         {/* EMAIL */}
         <View style={styles.inputContainer}>
-          <MaterialCommunityIcons name="email-outline" size={20} color="#7C3AED" style={styles.inputIcon} />
+          <MaterialCommunityIcons name="email-outline" size={20} color="#c4f6eb" style={styles.inputIcon} />
           <TextInput
             onChangeText={setEmail}
             value={email}

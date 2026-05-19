@@ -32,8 +32,8 @@ import { useFocusEffect } from '@react-navigation/native'
 // Source: https://docs.expo.dev/versions/latest/sdk/haptics/
 import * as Haptics from 'expo-haptics'
 
-// F18 — Localization: use shared formatPrice from App.js
-import { formatPrice } from '../App'
+
+import { formatPrice } from '../lib/utils'
 
 export default function WishlistScreen() {
   const [wishlistProducts, setWishlistProducts] = useState([])

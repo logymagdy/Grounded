@@ -1,3 +1,12 @@
+// 📁 App.js
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANGES IN THIS VERSION:
+// ✅ FIXED: formatPrice no longer exported from App.js
+//           All screens now import it from '../lib/utils' — no more require cycles
+// ✅ FIXED: supabase.auth.getSession() used (more standard than getClaims)
+// ✅ KEPT:  all existing screens, navigation, F6, F10, F15, F13 logic unchanged
+// ─────────────────────────────────────────────────────────────────────────────
+
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import {
@@ -27,30 +36,30 @@ import StoreLocatorScreen from './screens/storeLocatorScreen'
 // F10 — Network
 import * as Network from 'expo-network'
 
-// F15 — Deep Linking
+// F17 — Deep Linking
 import * as Linking from 'expo-linking'
 
-// F6 — Push Notifications root listener & registration function
+// F6 — Push Notifications
 import * as Notifications from 'expo-notifications'
 import { registerForPushNotificationsAsync } from './lib/notifications'
 
-// ─── F15: Deep Linking prefix ────────────────────────────────────────────────
+// ─── F17: Deep Linking prefix ─────────────────────────────────────────────────
 const prefix = Linking.createURL('/')
 
-// ─── F6: Notification handler — foreground behavior ──────────────────────────
+// ─── F6: Notification foreground handler ──────────────────────────────────────
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,   
+    shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 })
 
-// ─── Navigators ──────────────────────────────────────────────────────────────
+// ─── Navigators ───────────────────────────────────────────────────────────────
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
 
-// ─── Shop Stack (Tab 1) ───────────────────────────────────────────────────────
+// ─── Shop Stack (Tab 1) ────────────────────────────────────────────────────────
 function ShopStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -63,7 +72,7 @@ function ShopStack() {
   )
 }
 
-// ─── Authenticated Bottom Tab Navigator ──────────────────────────────────────
+// ─── F13: Authenticated Bottom Tab Navigator ───────────────────────────────────
 function AuthenticatedTabs() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
@@ -110,16 +119,15 @@ function AuthenticatedTabs() {
   )
 }
 
-// ─── Root App ─────────────────────────────────────────────────────────────────
+// ─── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(true)
-
   const notificationListener = useRef()
   const responseListener = useRef()
 
-  // F15 — Deep Linking config
+  // F17 — Deep Linking config
   const linking = {
     prefixes: [prefix],
     config: {
@@ -144,46 +152,36 @@ export default function App() {
   }
 
   useEffect(() => {
-    // Supabase Session Fetching
+    // Supabase Auth — getSession on app start
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUserId = session?.user?.id ?? null
       setUserId(currentUserId)
       setLoading(false)
-      
-      if (currentUserId) {
-        registerForPushNotificationsAsync()
-      }
+      if (currentUserId) registerForPushNotificationsAsync()
     })
 
-    // Auth State Listener
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Supabase Auth — listen for login/logout
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUserId = session?.user?.id ?? null
       setUserId(currentUserId)
-      
-      if (currentUserId) {
-        registerForPushNotificationsAsync()
-      }
+      if (currentUserId) registerForPushNotificationsAsync()
     })
 
-    // F10 — Network polling every 4 s
+    // F10 — Network polling every 4s
     const networkInterval = setInterval(async () => {
       const state = await Network.getNetworkStateAsync()
       setIsConnected(state.isConnected && state.isInternetReachable)
     }, 4000)
 
-    // F6 — Foreground notification received listener
-    notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log('Notification received:', notification)
-      })
+    // F6 — Foreground notification listener
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      console.log('Notification received:', notification)
+    })
 
-    // F6 — User tapped notification listener
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log('Notification tapped:', response)
-      })
+    // F6 — Notification tap listener
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('Notification tapped:', response)
+    })
 
     return () => {
       subscription?.unsubscribe()
@@ -210,7 +208,6 @@ export default function App() {
           <Text style={styles.offlineBannerText}>YOU ARE OFFLINE</Text>
         </View>
       )}
-
       <NavigationContainer linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {userId ? (

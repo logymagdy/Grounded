@@ -1,13 +1,5 @@
 // 📁 App.js
-// ─────────────────────────────────────────────────────────────────────────────
-// CHANGES IN THIS VERSION:
-// ✅ FIXED: formatPrice no longer exported from App.js
-//           All screens now import it from '../lib/utils' — no more require cycles
-// ✅ FIXED: supabase.auth.getSession() used (more standard than getClaims)
-// ✅ KEPT:  all existing screens, navigation, F6, F10, F15, F13 logic unchanged
-// ─────────────────────────────────────────────────────────────────────────────
-
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import {
   View,
@@ -21,7 +13,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 
-// Screens
 import AuthScreen from './screens/authScreen'
 import SignUpScreen from './screens/signUpScreen'
 import ProductListScreen from './screens/productListScreen'
@@ -33,20 +24,13 @@ import ProfileScreen from './screens/ProfileScreen'
 import BarcodeScreen from './screens/barcodeScreen'
 import StoreLocatorScreen from './screens/storeLocatorScreen'
 
-// F10 — Network
 import * as Network from 'expo-network'
-
-// F17 — Deep Linking
 import * as Linking from 'expo-linking'
-
-// F6 — Push Notifications
 import * as Notifications from 'expo-notifications'
 import { registerForPushNotificationsAsync } from './lib/notifications'
 
-// ─── F17: Deep Linking prefix ─────────────────────────────────────────────────
 const prefix = Linking.createURL('/')
 
-// ─── F6: Notification foreground handler ──────────────────────────────────────
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -55,11 +39,9 @@ Notifications.setNotificationHandler({
   }),
 })
 
-// ─── Navigators ───────────────────────────────────────────────────────────────
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
 
-// ─── Shop Stack (Tab 1) ────────────────────────────────────────────────────────
 function ShopStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -72,7 +54,6 @@ function ShopStack() {
   )
 }
 
-// ─── F13: Authenticated Bottom Tab Navigator ───────────────────────────────────
 function AuthenticatedTabs() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
@@ -119,7 +100,6 @@ function AuthenticatedTabs() {
   )
 }
 
-// ─── Root App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -167,18 +147,15 @@ export default function App() {
       if (currentUserId) registerForPushNotificationsAsync()
     })
 
-    // F10 — Network polling every 4s
     const networkInterval = setInterval(async () => {
       const state = await Network.getNetworkStateAsync()
       setIsConnected(state.isConnected && state.isInternetReachable)
     }, 4000)
 
-    // F6 — Foreground notification listener
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('Notification received:', notification)
     })
 
-    // F6 — Notification tap listener
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('Notification tapped:', response)
     })
@@ -186,8 +163,14 @@ export default function App() {
     return () => {
       subscription?.unsubscribe()
       clearInterval(networkInterval)
-      Notifications.removeNotificationSubscription(notificationListener.current)
-      Notifications.removeNotificationSubscription(responseListener.current)
+      
+      // FIX: Replaced global calls with safe standard subscription teardowns (.remove())
+      if (notificationListener.current) {
+        notificationListener.current.remove()
+      }
+      if (responseListener.current) {
+        responseListener.current.remove()
+      }
     }
   }, [])
 

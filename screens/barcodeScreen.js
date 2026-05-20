@@ -1,3 +1,6 @@
+// 📁 screens/barcodeScreen.js
+// Dual mode: camera scan (dev build) + manual barcode entry (works in Expo Go)
+
 import React, { useState } from 'react'
 import {
   View,
@@ -6,328 +9,336 @@ import {
   Alert,
   StyleSheet,
   useColorScheme,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
-
-// F4 — Barcode Scanner using expo-camera CameraView
-// Source: https://docs.expo.dev/versions/latest/sdk/camera/
 import { CameraView, useCameraPermissions } from 'expo-camera'
-
-// F5 — Cart: useCartStore lives in screens/ folder
-// FIX: was './useCartStore' which is correct since barcodeScreen is also in screens/
 import useCartStore from './useCartStore'
-
-// F14 — Haptic Feedback
 import * as Haptics from 'expo-haptics'
-
 import { formatPrice } from '../lib/utils'
 
 export default function BarcodeScreen({ navigation }) {
-  const [scanned, setScanned] = useState(false)
-  const [foundProduct, setFoundProduct] = useState(null)
-  const [searching, setSearching] = useState(false)
-
-  // Source: https://docs.expo.dev/versions/latest/sdk/camera/
   const [permission, requestPermission] = useCameraPermissions()
+  const [scanned, setScanned]           = useState(false)
+  const [searching, setSearching]       = useState(false)
+  const [manualCode, setManualCode]     = useState('')
 
-  // F5 — Cart
   const addItem = useCartStore((state) => state.addItem)
 
-  // F13 — Dark/Light Mode
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const colors = {
     background: isDark ? '#0A0A0A' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#1A1A1A',
-    subtext: isDark ? '#888888' : '#AAAAAA',
-    card: isDark ? '#1A1A1A' : '#F5F5F5',
-    border: isDark ? '#333333' : '#EEEEEE',
+    text:       isDark ? '#FFFFFF' : '#1A1A1A',
+    subtext:    isDark ? '#888888' : '#AAAAAA',
+    border:     isDark ? '#333333' : '#EEEEEE',
+    input:      isDark ? '#1A1A1A' : '#F5F5F5',
   }
 
-  // ─── F4: Handle barcode scan result ──────────────────────────────────────
-  // Source: https://docs.expo.dev/versions/latest/sdk/camera/
-  async function handleBarcodeScanned({ type, data }) {
-    if (scanned || searching) return
-    setScanned(true)
-    setSearching(true)
+  function resetScan() {
+    setScanned(false)
+    setSearching(false)
+    setManualCode('')
+  }
 
-    // F14 — Haptic on scan
+  // ─── Core lookup — shared by camera scan AND manual entry ─────────────────
+  async function lookupBarcode(data) {
+    if (searching) return
+    setSearching(true)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     try {
-      // F4 — Look up product in Supabase by barcode value
       const { data: products, error } = await supabase
         .from('products')
-        .select('id, name, price, category, image_url, stock')
-        .eq('barcode', data)
+        .select('id, name, price, category, image_url,barcode')
+        .eq('barcode', data.trim())
         .limit(1)
 
       if (error) throw error
 
-      if (products && products.length > 0) {
-        setFoundProduct(products[0])
-      } else {
+      if (!products || products.length === 0) {
         Alert.alert(
           'Not Found',
-          `No product found for barcode: ${data}`,
-          [{ text: 'Scan Again', onPress: () => setScanned(false) }]
+          `No product matched barcode:\n${data}`,
+          [{ text: 'Try Again', onPress: resetScan }]
         )
+        return
       }
-    } catch (error) {
-      Alert.alert('Error', error.message)
-      setScanned(false)
+
+      const product = products[0]
+
+      if (product.stock === 0) {
+        Alert.alert(
+          'Out of Stock',
+          `${product.name} is currently out of stock.`,
+          [{ text: 'Scan Again', onPress: resetScan }]
+        )
+        return
+      }
+
+      // ✅ Add to cart directly
+      addItem(product)
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+
+      Alert.alert(
+        '✓ Added to Cart',
+        `${product.name}\n${formatPrice(product.price)}`,
+        [
+          { text: 'Scan Another', onPress: resetScan },
+          { text: 'View Cart',    onPress: () => navigation.navigate('Cart') },
+        ]
+      )
+    } catch (err) {
+      Alert.alert('Error', err.message)
+      resetScan()
     } finally {
       setSearching(false)
     }
   }
 
-  // ─── F5 + F14: Add scanned product to cart ───────────────────────────────
-  function handleAddToCart() {
-    if (!foundProduct) return
-    addItem(foundProduct)
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
-    Alert.alert('Added!', `${foundProduct.name} added to cart.`, [
-      {
-        text: 'Keep Scanning',
-        onPress: () => {
-          setFoundProduct(null)
-          setScanned(false)
-        },
-      },
-      { text: 'View Cart', onPress: () => navigation.navigate('Cart') },
-    ])
+  // ─── Camera scan handler ──────────────────────────────────────────────────
+  async function handleBarcodeScanned({ data }) {
+    if (scanned || searching) return
+    setScanned(true)
+    await lookupBarcode(data)
   }
 
-  // ─── Permission loading ───────────────────────────────────────────────────
+  // ─── Manual entry handler ─────────────────────────────────────────────────
+  async function handleManualSubmit() {
+    if (!manualCode.trim()) {
+      Alert.alert('Enter a barcode number first.')
+      return
+    }
+    setScanned(true)
+    await lookupBarcode(manualCode.trim())
+  }
+
+  // ─── Permission: loading ───────────────────────────────────────────────────
   if (!permission) {
-    return <View style={{ flex: 1, backgroundColor: colors.background }} />
+    return (
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.subtext, fontSize: 12, letterSpacing: 1.2 }}>
+          REQUESTING CAMERA PERMISSION...
+        </Text>
+      </View>
+    )
   }
 
-  // ─── Permission denied ────────────────────────────────────────────────────
+  // ─── Permission: denied ────────────────────────────────────────────────────
   if (!permission.granted) {
     return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: colors.background,
-          alignItems: 'center',
-          justifyContent: 'center',
-          paddingHorizontal: 32,
-        }}
-      >
+      <View style={[styles.center, { backgroundColor: colors.background, paddingHorizontal: 32 }]}>
         <Ionicons name="camera-outline" size={48} color={colors.subtext} />
-        <Text
-          style={{
-            marginTop: 16,
-            fontSize: 14,
-            color: colors.text,
-            fontWeight: '600',
-            textAlign: 'center',
-            marginBottom: 20,
-          }}
-        >
+        <Text style={{ marginTop: 16, fontSize: 14, color: colors.text, fontWeight: '600', textAlign: 'center', marginBottom: 20 }}>
           Camera access is required to scan barcodes.
         </Text>
-        <TouchableOpacity
-          onPress={requestPermission}
-          style={{
-            backgroundColor: '#1A1A1A',
-            paddingHorizontal: 28,
-            height: 50,
-            borderRadius: 30,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ color: '#FFFFFF', fontWeight: '700', letterSpacing: 1 }}>
-            GRANT PERMISSION
-          </Text>
+        <TouchableOpacity onPress={requestPermission} style={styles.darkBtn}>
+          <Text style={styles.darkBtnText}>GRANT PERMISSION</Text>
         </TouchableOpacity>
       </View>
     )
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000000' }}>
-
-      {/* ─── F4: CameraView with barcode scanning ──────────────── */}
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: '#000000' }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      {/* Camera */}
       <CameraView
         style={StyleSheet.absoluteFillObject}
         facing="back"
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
         barcodeScannerSettings={{
-          barcodeTypes: ['qr', 'ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'],
+          barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr'],
         }}
       />
 
-      {/* ─── Header overlay ──────────────────────────────────────── */}
-      <View
-        style={{
-          position: 'absolute',
-          top: 50,
-          left: 20,
-          right: 20,
-          flexDirection: 'row',
-          alignItems: 'center',
-        }}
-      >
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={{
-            backgroundColor: 'rgba(0,0,0,0.5)',
-            borderRadius: 20,
-            padding: 8,
-            marginRight: 12,
-          }}
-        >
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text
-          style={{
-            color: '#FFFFFF',
-            fontSize: 16,
-            fontWeight: '700',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-          }}
-        >
-          Scan Barcode
-        </Text>
+        <Text style={styles.headerTitle}>SCAN BARCODE</Text>
       </View>
 
-      {/* ─── Scan frame overlay ───────────────────────────────────── */}
-      <View
-        style={{
-          position: 'absolute',
-          top: '30%',
-          alignSelf: 'center',
-          width: 240,
-          height: 160,
-          borderWidth: 2,
-          borderColor: '#FFFFFF',
-          borderRadius: 12,
-          backgroundColor: 'transparent',
-        }}
-      >
-        {[
-          { top: -2, left: -2 },
-          { top: -2, right: -2 },
-          { bottom: -2, left: -2 },
-          { bottom: -2, right: -2 },
-        ].map((pos, i) => (
-          <View
-            key={i}
-            style={[
-              {
-                position: 'absolute',
-                width: 20,
-                height: 20,
-                borderColor: '#476774',
-                borderTopWidth: i < 2 ? 3 : 0,
+      {/* Scan frame */}
+      <View style={styles.frameWrapper}>
+        <View style={styles.frame}>
+          {[
+            { top: -2, left: -2 },
+            { top: -2, right: -2 },
+            { bottom: -2, left: -2 },
+            { bottom: -2, right: -2 },
+          ].map((pos, i) => (
+            <View
+              key={i}
+              style={[styles.corner, {
+                borderTopWidth:    i < 2  ? 3 : 0,
                 borderBottomWidth: i >= 2 ? 3 : 0,
-                borderLeftWidth: i % 2 === 0 ? 3 : 0,
-                borderRightWidth: i % 2 !== 0 ? 3 : 0,
-              },
-              pos,
-            ]}
-          />
-        ))}
+                borderLeftWidth:   i % 2 === 0 ? 3 : 0,
+                borderRightWidth:  i % 2 !== 0 ? 3 : 0,
+              }, pos]}
+            />
+          ))}
+        </View>
       </View>
 
-      {/* ─── Status text ──────────────────────────────────────────── */}
-      <View style={{ position: 'absolute', top: '58%', alignSelf: 'center' }}>
-        <Text
-          style={{
-            color: '#FFFFFF',
-            fontSize: 12,
-            letterSpacing: 1.2,
-            fontWeight: '600',
-            textAlign: 'center',
-          }}
-        >
-          {searching ? 'SEARCHING CATALOG...' : scanned ? '' : 'ALIGN BARCODE IN FRAME'}
+      {/* Status */}
+      <View style={styles.statusWrapper}>
+        <Text style={styles.statusText}>
+          {searching ? 'SEARCHING CATALOG...' : 'ALIGN BARCODE IN FRAME'}
         </Text>
       </View>
 
-      {/* ─── Found Product card ───────────────────────────────────── */}
-      {foundProduct && (
-        <View
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
-            backgroundColor: colors.background,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            padding: 24,
-            paddingBottom: 40,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 9,
-              letterSpacing: 1.4,
-              color: colors.subtext,
-              fontWeight: '700',
-              textTransform: 'uppercase',
-              marginBottom: 4,
-            }}
+      {/* ─── Manual entry panel (bottom) ──────────────────────────────────────
+          Works in Expo Go — type the barcode number and tap Search.
+          Same lookupBarcode() function as camera scan.          */}
+      <View style={[styles.manualPanel, { backgroundColor: colors.background }]}>
+        <Text style={[styles.manualLabel, { color: colors.subtext }]}>
+          OR ENTER BARCODE MANUALLY
+        </Text>
+        <View style={styles.manualRow}>
+          <TextInput
+            style={[styles.manualInput, {
+              backgroundColor: colors.input,
+              color: colors.text,
+              borderColor: colors.border,
+            }]}
+            placeholder="e.g. 5901234123457"
+            placeholderTextColor={colors.subtext}
+            value={manualCode}
+            onChangeText={setManualCode}
+            keyboardType="numeric"
+            returnKeyType="search"
+            onSubmitEditing={handleManualSubmit}
+            editable={!searching}
+          />
+          <TouchableOpacity
+            onPress={handleManualSubmit}
+            disabled={searching}
+            style={[styles.manualBtn, searching && { opacity: 0.5 }]}
           >
-            {foundProduct.category}
-          </Text>
-          <Text
-            style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 4 }}
-          >
-            {foundProduct.name}
-          </Text>
-          {/* F18 — formatPrice for correct currency */}
-          <Text
-            style={{ fontSize: 16, fontWeight: '700', color: '#476774', marginBottom: 20 }}
-          >
-            {formatPrice(foundProduct.price)}
-          </Text>
-
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <TouchableOpacity
-              onPress={() => {
-                setFoundProduct(null)
-                setScanned(false)
-              }}
-              style={{
-                flex: 1,
-                height: 50,
-                borderRadius: 30,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>
-                SCAN AGAIN
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={handleAddToCart}
-              style={{
-                flex: 2,
-                height: 50,
-                borderRadius: 30,
-                backgroundColor: '#1A1A1A',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700', letterSpacing: 1 }}>
-                ADD TO CART
-              </Text>
-            </TouchableOpacity>
-          </View>
+            <Ionicons name="search" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-      )}
-    </View>
+      </View>
+
+    </KeyboardAvoidingView>
   )
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  darkBtn: {
+    backgroundColor: '#1A1A1A',
+    paddingHorizontal: 28,
+    height: 50,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  darkBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  header: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  backBtn: {
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8,
+    marginRight: 12,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  frameWrapper: {
+    position: 'absolute',
+    top: '28%',
+    alignSelf: 'center',
+  },
+  frame: {
+    width: 240,
+    height: 160,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    borderRadius: 12,
+    backgroundColor: 'transparent',
+  },
+  corner: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    borderColor: '#476774',
+  },
+  statusWrapper: {
+    position: 'absolute',
+    top: '54%',
+    alignSelf: 'center',
+  },
+  statusText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    letterSpacing: 1.2,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Manual entry
+  manualPanel: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 36,
+  },
+  manualLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  manualRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  manualInput: {
+    flex: 1,
+    height: 50,
+    borderRadius: 30,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    fontSize: 15,
+  },
+  manualBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#1A1A1A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+})

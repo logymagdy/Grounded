@@ -1,12 +1,4 @@
-// 📁 screens/productListScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// CHANGES IN THIS VERSION:
-// ✅ FIXED: import useCartStore from './useCartStore'
-//           → import useCartStore from '../store/useCartStore'
-// ✅ KEPT:  all features unchanged — F2, F5, F8, F11, F12, F13, F14, F16
-// ─────────────────────────────────────────────────────────────────────────────
-
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
   Text,
@@ -18,25 +10,17 @@ import {
   useColorScheme,
   ActivityIndicator,
 } from 'react-native'
+import { useFocusEffect } from '@react-navigation/native'
 import { supabase } from '../lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { appStyles } from '../styles/styles'
 import { formatPrice } from '../lib/utils'
 
-// ✅ FIXED: correct path
-import useCartStore from '../store/useCartStore'
+import useCartStore from './useCartStore'
 
-// F8 — Offline Browsing
-import * as FileSystem from 'expo-file-system'
-
-// F14 — Haptic Feedback
 import * as Haptics from 'expo-haptics'
 
-// F12 — Battery-Aware Sync
-import * as Battery from 'expo-battery'
-
-const CATEGORIES = ['All', 'Tents', 'Bags', 'Apparel', 'Gear']
-const CACHE_PATH = FileSystem.documentDirectory + 'products_cache.json'
+const CATEGORIES = ['All', 'Tents', 'Bags', 'Apparel', 'Equipment']
 
 export default function ProductList({ navigation }) {
   const [products, setProducts] = useState([])
@@ -58,12 +42,14 @@ export default function ProductList({ navigation }) {
     border: isDark ? '#333333' : '#F0F0F0',
   }
 
-  useEffect(() => {
-    fetchProducts()
-    fetchWishlist()
-  }, [selectedCategory])
+  useFocusEffect(
+    useCallback(() => {
+      fetchProducts()
+      fetchWishlist()
+    }, [selectedCategory])
+  )
 
-  // F16 — Realtime stock
+  // F16 — Realtime stock subscription
   useEffect(() => {
     const channel = supabase
       .channel('realtime-stock')
@@ -86,75 +72,92 @@ export default function ProductList({ navigation }) {
     }
   }
 
+  // ─── F2: Fetch products ───────────────────────────────────────────────────
   async function fetchProducts() {
     try {
-      // F12 — Battery check
-      const batteryLevel = await Battery.getBatteryLevelAsync()
-      const batteryState = await Battery.getBatteryStateAsync()
-      const isCharging = batteryState === Battery.BatteryState.CHARGING || batteryState === Battery.BatteryState.FULL
-
-      if (batteryLevel < 0.15 && !isCharging) {
-        const fileInfo = await FileSystem.getInfoAsync(CACHE_PATH)
-        if (fileInfo.exists) {
-          const cached = await FileSystem.readAsStringAsync(CACHE_PATH, { encoding: FileSystem.EncodingType.UTF8 })
-          setProducts(JSON.parse(cached))
-          Alert.alert('Battery Saver', 'Low battery detected. Showing cached products.')
-        }
-        setLoading(false)
+      setLoading(true)
+      let query = supabase.from('products').select('*')
+      if (selectedCategory !== 'All') {
+        query = query.eq('category', selectedCategory)
+      }
+      const { data, error } = await query
+      if (error) {
+        Alert.alert('Database Error', error.message)
         return
       }
-
-      setLoading(true)
-      let query = supabase.from('products').select('id, name, price, category, image_url, stock')
-      if (selectedCategory !== 'All') query = query.eq('category', selectedCategory)
-
-      const { data, error } = await query
-      if (error) throw error
-
       if (data) {
         setProducts(data)
         const initialStock = {}
-        data.forEach((p) => { initialStock[p.id] = p.stock })
+        data.forEach((p) => { initialStock[p.id] = p.stock !== undefined ? p.stock : 5 })
         setStockMap(initialStock)
-        // F8 — Cache to filesystem
-        await FileSystem.writeAsStringAsync(CACHE_PATH, JSON.stringify(data), { encoding: FileSystem.EncodingType.UTF8 })
       }
     } catch (error) {
-      // F8 — Fallback to cache
-      const fileInfo = await FileSystem.getInfoAsync(CACHE_PATH)
-      if (fileInfo.exists) {
-        const cached = await FileSystem.readAsStringAsync(CACHE_PATH, { encoding: FileSystem.EncodingType.UTF8 })
-        setProducts(JSON.parse(cached))
-      } else {
-        Alert.alert('Error', error.message)
-      }
+      Alert.alert('Error', error.message)
     } finally {
       setLoading(false)
     }
   }
 
   async function fetchWishlist() {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const { data, error } = await supabase.from('wishlist').select('product_id').eq('user_id', user.id)
-    if (!error && data) setWishlist(data.map((w) => w.product_id))
-  }
-
-  async function toggleWishlist(productId) {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    if (wishlist.includes(productId)) {
-      await supabase.from('wishlist').delete().eq('user_id', user.id).eq('product_id', productId)
-      setWishlist((prev) => prev.filter((id) => id !== productId))
-    } else {
-      await supabase.from('wishlist').insert({ user_id: user.id, product_id: productId })
-      setWishlist((prev) => [...prev, productId])
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data, error } = await supabase
+        .from('wishlist')
+        .select('product_id')
+        .eq('user_id', user.id)
+      if (!error && data) setWishlist(data.map((w) => w.product_id))
+    } catch (e) {
+      console.log('Wishlist fetch error:', e.message)
     }
   }
 
+  // ─── F11: Toggle wishlist — add or remove from Supabase wishlist table ────
+  // Source: supabase-js docs — .insert() and .delete()
+  // Heart turns red instantly (optimistic update) then syncs with DB
+  async function toggleWishlist(productId) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    if (wishlist.includes(productId)) {
+      // ─── Remove from wishlist ─────────────────────────────────────────────
+      // Optimistic: remove from local state immediately
+      setWishlist((prev) => prev.filter((id) => id !== productId))
+
+      const { error } = await supabase
+        .from('wishlist')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('product_id', productId)
+
+      if (error) {
+        // Revert on failure
+        setWishlist((prev) => [...prev, productId])
+        Alert.alert('Error', error.message)
+      }
+    } else {
+      // ─── Add to wishlist ──────────────────────────────────────────────────
+      // Optimistic: add to local state immediately
+      setWishlist((prev) => [...prev, productId])
+
+      // F14 — Haptic on wishlist add
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
+
+      const { error } = await supabase
+        .from('wishlist')
+        .insert({ user_id: user.id, product_id: productId })
+
+      if (error) {
+        // Revert on failure
+        setWishlist((prev) => prev.filter((id) => id !== productId))
+        Alert.alert('Error', error.message)
+      }
+    }
+  }
+
+  // ─── F5 + F14: Add to cart with haptic ───────────────────────────────────
   function handleAddToCart(product) {
     addItem(product)
-    // F14 — Source: expo-haptics docs
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
   }
 
@@ -162,30 +165,71 @@ export default function ProductList({ navigation }) {
     const isWishlisted = wishlist.includes(item.id)
     const currentStock = stockMap[item.id] ?? item.stock
     const isOutOfStock = currentStock === 0
+    const imageUrl = item.image_url || null
 
     return (
-      <View style={[appStyles.productCard, { backgroundColor: colors.card }]}>
-        <View>
-          <Image source={{ uri: item.image_url }} style={appStyles.productImage} resizeMode="cover" />
-          {currentStock !== undefined && (
-            <View style={[appStyles.stockBadge, { backgroundColor: isOutOfStock ? '#CC0000' : '#476774' }]}>
-              <Text style={appStyles.stockBadgeText}>{isOutOfStock ? 'OUT OF STOCK' : `${currentStock} LEFT`}</Text>
+      <View style={[appStyles.productCard, { backgroundColor: colors.card, minHeight: 260 }]}>
+        <View style={{ backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8' }}>
+          {imageUrl ? (
+            <Image
+              source={{ uri: imageUrl }}
+              style={appStyles.productImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[appStyles.productImage, {
+              backgroundColor: isDark ? '#2A2A2A' : '#E8E8E8',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }]}>
+              <Ionicons name="image-outline" size={32} color={isDark ? '#555555' : '#BBBBBB'} />
             </View>
           )}
-          <TouchableOpacity onPress={() => toggleWishlist(item.id)} style={appStyles.wishlistBtn}>
-            <Ionicons name={isWishlisted ? 'heart' : 'heart-outline'} size={18} color={isWishlisted ? '#CC0000' : '#888888'} />
+
+          {/* F16 — Stock badge */}
+          {currentStock !== undefined && (
+            <View style={[appStyles.stockBadge, { backgroundColor: isOutOfStock ? '#CC0000' : '#476774' }]}>
+              <Text style={appStyles.stockBadgeText}>
+                {isOutOfStock ? 'OUT OF STOCK' : `${currentStock} LEFT`}
+              </Text>
+            </View>
+          )}
+
+          {/* F11 — Wishlist heart button
+              Tapping heart → toggleWishlist() → inserts/deletes from Supabase wishlist table
+              Heart fills red instantly via local state, then syncs with DB */}
+          <TouchableOpacity
+            onPress={() => toggleWishlist(item.id)}
+            style={appStyles.wishlistBtn}
+          >
+            <Ionicons
+              name={isWishlisted ? 'heart' : 'heart-outline'}
+              size={18}
+              color={isWishlisted ? '#CC0000' : '#888888'}
+            />
           </TouchableOpacity>
         </View>
+
         <View style={appStyles.productInfo}>
-          <Text style={[appStyles.productCategory, { color: colors.subtext }]}>{item.category}</Text>
-          <Text style={[appStyles.productName, { color: colors.text }]}>{item.name}</Text>
-          <Text style={[appStyles.productPrice, { color: colors.text }]}>{formatPrice(item.price)}</Text>
+          <Text style={[appStyles.productCategory, { color: colors.subtext }]}>
+            {item.category || 'General'}
+          </Text>
+          <Text style={[appStyles.productName, { color: colors.text }]}>
+            {item.name || 'Unnamed Item'}
+          </Text>
+          <Text style={[appStyles.productPrice, { color: colors.text }]}>
+            {formatPrice(item.price)}
+          </Text>
+
+          {/* F5 — Add to cart */}
           <TouchableOpacity
             onPress={() => handleAddToCart(item)}
             disabled={isOutOfStock}
             style={[appStyles.addToCartBtn, { backgroundColor: isOutOfStock ? '#CCCCCC' : '#1A1A1A' }]}
           >
-            <Text style={appStyles.addToCartText}>{isOutOfStock ? 'SOLD OUT' : 'ADD TO CART'}</Text>
+            <Text style={appStyles.addToCartText}>
+              {isOutOfStock ? 'SOLD OUT' : 'ADD TO CART'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -194,6 +238,8 @@ export default function ProductList({ navigation }) {
 
   return (
     <View style={[appStyles.container, { backgroundColor: colors.background }]}>
+
+      {/* Header */}
       <View style={appStyles.header}>
         <View style={{ flex: 1, alignItems: 'flex-start' }}>
           <TouchableOpacity style={appStyles.backBtn} onPress={handleLogout}>
@@ -212,30 +258,52 @@ export default function ProductList({ navigation }) {
             <Ionicons name="bag-outline" size={24} color={colors.text} />
             {cartItems.length > 0 && (
               <View style={appStyles.cartBadge}>
-                <Text style={appStyles.cartBadgeText}>{cartItems.reduce((sum, i) => sum + i.quantity, 0)}</Text>
+                <Text style={appStyles.cartBadgeText}>
+                  {cartItems.reduce((sum, i) => sum + i.quantity, 0)}
+                </Text>
               </View>
             )}
           </TouchableOpacity>
         </View>
       </View>
 
+      {/* Category filters */}
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={appStyles.filterContent} style={{ paddingVertical: 12 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={appStyles.filterContent}
+          style={{ paddingVertical: 12 }}
+        >
           {CATEGORIES.map((cat) => {
             const isActive = selectedCategory === cat
             return (
-              <TouchableOpacity key={cat} onPress={() => setSelectedCategory(cat)} style={[appStyles.filterChip, isActive && appStyles.filterChipActive]}>
-                <Text style={[appStyles.filterChipText, isActive && appStyles.filterChipTextActive]}>{cat}</Text>
+              <TouchableOpacity
+                key={cat}
+                onPress={() => setSelectedCategory(cat)}
+                style={[appStyles.filterChip, isActive && appStyles.filterChipActive]}
+              >
+                <Text style={[appStyles.filterChipText, isActive && appStyles.filterChipTextActive]}>
+                  {cat}
+                </Text>
               </TouchableOpacity>
             )
           })}
         </ScrollView>
       </View>
 
+      {/* Product grid */}
       {loading ? (
         <View style={appStyles.loadingContainer}>
           <ActivityIndicator color={colors.text} />
           <Text style={[appStyles.loadingText, { color: colors.subtext, marginTop: 12 }]}>LOADING</Text>
+        </View>
+      ) : products.length === 0 ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="cube-outline" size={48} color={colors.subtext} />
+          <Text style={{ marginTop: 16, fontSize: 13, color: colors.subtext, letterSpacing: 1.2, fontWeight: '600' }}>
+            NO PRODUCTS FOUND
+          </Text>
         </View>
       ) : (
         <FlatList

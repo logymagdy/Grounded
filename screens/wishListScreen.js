@@ -1,19 +1,3 @@
-// screens/WishlistScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// FEATURES IN THIS FILE:
-//
-// F11 — Wishlist UI       → fetch wishlist items from Supabase + remove
-//                           Source: https://supabase.com/docs/reference/javascript/select
-//
-// F13 — Dark/Light Mode   → useColorScheme from react-native
-//                           Source: https://reactnative.dev/docs/usecolorscheme
-//
-// F14 — Haptic Feedback   → expo-haptics on remove from wishlist
-//                           Source: https://docs.expo.dev/versions/latest/sdk/haptics/
-//
-// F18 — Localization      → formatPrice from App.js for correct currency
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   View,
@@ -27,19 +11,13 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
 import { useFocusEffect } from '@react-navigation/native'
-
-// F14 — Haptic Feedback
-// Source: https://docs.expo.dev/versions/latest/sdk/haptics/
 import * as Haptics from 'expo-haptics'
-
-
 import { formatPrice } from '../lib/utils'
 
 export default function WishlistScreen() {
   const [wishlistProducts, setWishlistProducts] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // F13 — Dark/Light Mode
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const colors = {
@@ -50,24 +28,18 @@ export default function WishlistScreen() {
     border: isDark ? '#333333' : '#F0F0F0',
   }
 
-  // useFocusEffect re-fetches wishlist every time this tab is focused
-  // Source: https://reactnavigation.org/docs/use-focus-effect
   useFocusEffect(
     useCallback(() => {
       fetchWishlist()
     }, [])
   )
 
-  // F11 — Fetch wishlist with joined product data
-  // Source: https://supabase.com/docs/reference/javascript/select
-  // The select uses a foreign key join: wishlist → products
   async function fetchWishlist() {
     try {
       setLoading(true)
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Join wishlist rows with their product details in one query
       const { data, error } = await supabase
         .from('wishlist')
         .select(`
@@ -92,11 +64,8 @@ export default function WishlistScreen() {
     }
   }
 
-  // F11 — Remove from wishlist
-  // Source: https://supabase.com/docs/reference/javascript/delete
   async function handleRemove(wishlistId) {
     try {
-      // F14 — Haptic warning on remove
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning)
 
       const { error } = await supabase
@@ -105,8 +74,6 @@ export default function WishlistScreen() {
         .eq('id', wishlistId)
 
       if (error) throw error
-
-      // Remove from local state immediately for instant UI feedback
       setWishlistProducts((prev) => prev.filter((w) => w.id !== wishlistId))
     } catch (error) {
       Alert.alert('Error', error.message)
@@ -118,18 +85,8 @@ export default function WishlistScreen() {
     if (!product) return null
 
     return (
-      <View style={{
-        flexDirection: 'row',
-        backgroundColor: colors.card,
-        marginBottom: 12,
-        borderRadius: 8,
-        overflow: 'hidden',
-      }}>
-        <Image
-          source={{ uri: product.image_url }}
-          style={{ width: 90, height: 90 }}
-          resizeMode="cover"
-        />
+      <View style={{ flexDirection: 'row', backgroundColor: colors.card, marginBottom: 12, borderRadius: 8, overflow: 'hidden' }}>
+        <Image source={{ uri: product.image_url }} style={{ width: 90, height: 90 }} resizeMode="cover" />
         <View style={{ flex: 1, padding: 12, justifyContent: 'space-between' }}>
           <View>
             <Text style={{ fontSize: 9, letterSpacing: 1.2, color: colors.subtext, fontWeight: '600', textTransform: 'uppercase', marginBottom: 3 }}>
@@ -139,17 +96,12 @@ export default function WishlistScreen() {
               {product.name}
             </Text>
           </View>
-          {/* F18 — formatPrice shows EGP or USD based on device locale */}
           <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text }}>
             {formatPrice(product.price)}
           </Text>
         </View>
 
-        {/* F11 — Remove from wishlist button */}
-        <TouchableOpacity
-          onPress={() => handleRemove(item.id)}
-          style={{ padding: 10, justifyContent: 'flex-start' }}
-        >
+        <TouchableOpacity onPress={() => handleRemove(item.id)} style={{ padding: 10, justifyContent: 'flex-start' }}>
           <Ionicons name="heart-dislike-outline" size={20} color="#CC0000" />
         </TouchableOpacity>
       </View>
@@ -158,13 +110,10 @@ export default function WishlistScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingHorizontal: 20, paddingTop: 60 }}>
-
-      {/* ─── Header ──────────────────────────────────────────────── */}
       <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 24 }}>
         Wishlist
       </Text>
 
-      {/* ─── Empty State ─────────────────────────────────────────── */}
       {!loading && wishlistProducts.length === 0 && (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="heart-outline" size={48} color={colors.subtext} />
@@ -174,8 +123,6 @@ export default function WishlistScreen() {
         </View>
       )}
 
-      {/* ─── Wishlist Items ───────────────────────────────────────── */}
-      {/* F11 — FlatList renders all wishlisted products from Supabase */}
       <FlatList
         data={wishlistProducts}
         renderItem={renderItem}

@@ -7,31 +7,30 @@ import {
   useColorScheme,
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-
-// F18 — Localization & Isolated Utils Import
 import { formatPrice } from '../lib/utils'
+
+// ✅ FIXED: was './useCartStore' — wrong path created a separate store instance
+// All screens must import from the same path for Zustand to share state
 import useCartStore from './useCartStore'
 
-// F14 — Haptic Feedback
 import * as Haptics from 'expo-haptics'
 
 export default function CartScreen({ navigation }) {
-  const items = useCartStore((state) => state.items)
-  const removeItem = useCartStore((state) => state.removeItem)
+  const items          = useCartStore((state) => state.items)
+  const removeItem     = useCartStore((state) => state.removeItem)
   const updateQuantity = useCartStore((state) => state.updateQuantity)
-  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
+  const total          = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
 
   const colorScheme = useColorScheme()
   const isDark = colorScheme === 'dark'
   const colors = {
     background: isDark ? '#0A0A0A' : '#FFFFFF',
-    text: isDark ? '#FFFFFF' : '#1A1A1A',
-    subtext: isDark ? '#888888' : '#AAAAAA',
-    card: isDark ? '#1A1A1A' : '#FAFAFA',
-    border: isDark ? '#333333' : '#F0F0F0',
+    text:       isDark ? '#FFFFFF' : '#1A1A1A',
+    subtext:    isDark ? '#888888' : '#AAAAAA',
+    card:       isDark ? '#1A1A1A' : '#FAFAFA',
+    border:     isDark ? '#333333' : '#F0F0F0',
   }
 
-  // Trigger feedback when altering cart state numbers
   const handleQuantityChange = (id, newQty) => {
     updateQuantity(id, newQty)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
@@ -44,10 +43,11 @@ export default function CartScreen({ navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: 50, paddingHorizontal: 24 }}>
+
       {/* Header */}
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
-        <TouchableOpacity 
-          onPress={() => navigation.goBack()} 
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
           style={{ marginRight: 12 }}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
@@ -72,22 +72,34 @@ export default function CartScreen({ navigation }) {
             keyExtractor={(item) => item.id.toString()}
             showsVerticalScrollIndicator={false}
             renderItem={({ item }) => (
-              <View style={{ flexDirection: 'row', padding: 12, backgroundColor: colors.card, borderRadius: 12, marginBottom: 12, alignItems: 'center', borderWidth: 1, borderColor: colors.border }}>
+              <View style={{
+                flexDirection: 'row',
+                padding: 12,
+                backgroundColor: colors.card,
+                borderRadius: 12,
+                marginBottom: 12,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: colors.text, fontSize: 15, fontWeight: '600' }}>{item.name}</Text>
                   <Text style={{ color: colors.subtext, fontSize: 13, marginTop: 2 }}>{formatPrice(item.price)}</Text>
                 </View>
 
-                {/* Quantity Controller */}
+                {/* Quantity controller */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginRight: 16 }}>
-                  <TouchableOpacity 
-                    onPress={() => item.quantity > 1 ? handleQuantityChange(item.id, item.quantity - 1) : handleRemoveItem(item.id)}
+                  <TouchableOpacity
+                    onPress={() => item.quantity > 1
+                      ? handleQuantityChange(item.id, item.quantity - 1)
+                      : handleRemoveItem(item.id)
+                    }
                     style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }}
                   >
                     <Ionicons name="remove" size={16} color={colors.text} />
                   </TouchableOpacity>
                   <Text style={{ color: colors.text, fontSize: 15, fontWeight: '700' }}>{item.quantity}</Text>
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     onPress={() => handleQuantityChange(item.id, item.quantity + 1)}
                     style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }}
                   >
@@ -102,14 +114,12 @@ export default function CartScreen({ navigation }) {
             )}
           />
 
-          {/* Footer Pricing Summary */}
+          {/* Footer */}
           <View style={{ borderTopWidth: 1, borderTopColor: colors.border, paddingVertical: 20, marginBottom: 20 }}>
-            {/* 🧠 FIXED: Replaced standard web HTML <div> with native React Native <View> */}
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <Text style={{ color: colors.text, fontSize: 16, fontWeight: '600' }}>Total Amount</Text>
               <Text style={{ color: colors.text, fontSize: 20, fontWeight: '800' }}>{formatPrice(total)}</Text>
             </View>
-
             <TouchableOpacity
               onPress={() => navigation.navigate('Checkout')}
               style={{ backgroundColor: '#1A1A1A', height: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}

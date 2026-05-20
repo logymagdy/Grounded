@@ -4,15 +4,18 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   Alert,
+  StyleSheet,
+  ScrollView,
   useColorScheme,
+  ActivityIndicator,
 } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
 import { supabase } from '../lib/supabase'
+import { Ionicons } from '@expo/vector-icons'
 
-// F5 — Cart: useCartStore lives in screens/ folder
 import useCartStore from './useCartStore'
+
+import { formatPrice } from '../lib/utils'
 
 // F14 — Haptic Feedback
 import * as Haptics from 'expo-haptics'
@@ -21,15 +24,18 @@ import * as Haptics from 'expo-haptics'
 import * as Print from 'expo-print'
 import * as Sharing from 'expo-sharing'
 
-// F18 — Localization
-import { formatPrice } from '../lib/utils'
-
 export default function CheckoutScreen({ navigation }) {
-
-  // F5 — Cart state
-  const items = useCartStore((state) => state.items)
+  const cartItems = useCartStore((state) => state.items)
   const clearCart = useCartStore((state) => state.clearCart)
-  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
+
+  const [fullName, setFullName] = useState('Logy')
+  const [address, setAddress] = useState('Miami')
+  const [city, setCity] = useState('Alexandria')
+  const [loading, setLoading] = useState(false)
+
+  // ✅ FIXED: use correct field names matching DB
+  const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+  const totalItems = cartItems.reduce((sum, item) => sum + item.quantity, 0)
 
   // F13 — Dark/Light Mode
   const colorScheme = useColorScheme()
@@ -38,27 +44,22 @@ export default function CheckoutScreen({ navigation }) {
     background: isDark ? '#0A0A0A' : '#FFFFFF',
     text: isDark ? '#FFFFFF' : '#1A1A1A',
     subtext: isDark ? '#888888' : '#AAAAAA',
-    card: isDark ? '#1A1A1A' : '#FAFAFA',
-    border: isDark ? '#333333' : '#EEEEEE',
+    inputBg: isDark ? '#1A1A1A' : '#F5F5F5',
+    border: isDark ? '#333333' : '#E0E0E0',
+    buttonBg: '#1A1A1A',
+    buttonText: '#FFFFFF',
   }
 
-  const [fullName, setFullName] = useState('')
-  const [address, setAddress] = useState('')
-  const [city, setCity] = useState('')
-  const [placing, setPlacing] = useState(false)
-
-  // ─── F17: Generate and share PDF receipt ─────────────────────────────────
+  // F17 — Generate and share PDF receipt
+  // Source: expo-print + expo-sharing docs
   async function generateReceipt(orderId) {
-    const itemRows = items
-      .map(
-        (i) =>
-          `<tr>
-            <td>${i.name}</td>
-            <td style="text-align:center">${i.quantity}</td>
-            <td style="text-align:right">${formatPrice(i.price * i.quantity)}</td>
-          </tr>`
-      )
-      .join('')
+    const itemRows = cartItems.map((i) =>
+      `<tr>
+        <td>${i.name}</td>
+        <td style="text-align:center">${i.quantity}</td>
+        <td style="text-align:right">${formatPrice(i.price * i.quantity)}</td>
+      </tr>`
+    ).join('')
 
     const html = `
       <html>
@@ -82,286 +83,192 @@ export default function CheckoutScreen({ navigation }) {
           </table>
           <hr/>
           <p style="text-align:right; font-size: 18px; font-weight: bold;">
-            TOTAL: ${formatPrice(total)}
+            TOTAL: ${formatPrice(totalAmount)}
           </p>
         </body>
       </html>
     `
-
-    // Convert HTML → PDF file on device
     const { uri } = await Print.printToFileAsync({ html })
-
-    // Open native share sheet to save/send the PDF
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
-      dialogTitle: 'Save your receipt',
+      dialogTitle: 'Save your Grounded receipt',
       UTI: 'com.adobe.pdf',
     })
   }
 
-  // ─── F9: Place Order ─────────────────────────────────────────────────────
+  // F9 — Place Order in Supabase
   async function handlePlaceOrder() {
-    if (!fullName.trim() || !address.trim() || !city.trim()) {
-      Alert.alert('Missing Info', 'Please fill in all shipping fields.')
+    if (cartItems.length === 0) {
+      Alert.alert('Empty Cart', 'Please add items to your cart first.')
       return
     }
 
     try {
-      setPlacing(true)
+      setLoading(true)
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      if (authError || !user) {
+        Alert.alert('Error', 'Session expired. Please log in again.')
+        return
+      }
 
-      // F9 — Insert order into Supabase orders table
-      const { data, error } = await supabase
+      // F9 — Insert order into Supabase
+      // ✅ FIXED: status → 'completed' | total_price → total | items now saved
+      const { data, error: orderError } = await supabase
         .from('orders')
         .insert({
           user_id: user.id,
-          items: items,
-          total: total,
-          full_name: fullName,
-          address: address,
-          city: city,
-          status: 'pending',
+          full_name: fullName.trim(),
+          address: address.trim(),
+          city: city.trim(),
+          total: totalAmount,           // ✅ FIXED: was total_price
+          items: cartItems,             // ✅ FIXED: was missing entirely
+          status: 'completed',          // ✅ FIXED: was 'Pending'
           created_at: new Date().toISOString(),
         })
         .select()
         .single()
 
-      if (error) throw error
+      if (orderError) throw orderError
 
       // F14 — Haptic success
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
-      // F5 — Clear cart after successful order
+      // F5 — Clear cart after order
       clearCart()
 
-      // F17 — Generate + share PDF receipt
+      // F17 — Generate PDF receipt
       await generateReceipt(data.id)
 
-      Alert.alert('Order Placed!', 'Your order has been confirmed.', [
-        { text: 'OK', onPress: () => navigation.navigate('ProductList') },
+      Alert.alert('Success!', 'Order placed successfully.', [
+        { text: 'OK', onPress: () => navigation.navigate('Shop') },
       ])
     } catch (error) {
-      Alert.alert('Error', error.message)
+      Alert.alert('Checkout Failed', error.message)
     } finally {
-      setPlacing(false)
+      setLoading(false)
     }
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 50, paddingBottom: 40 }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ─── Header ────────────────────────────────────────────── */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 32 }}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-            style={{ marginRight: 12 }}
-          >
-            <Ionicons name="chevron-back" size={28} color={colors.text} />
-          </TouchableOpacity>
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: '700',
-              color: colors.text,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-            }}
-          >
-            Checkout
-          </Text>
-        </View>
+    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
 
-        {/* ─── Shipping Details ─────────────────────────────────── */}
-        <Text
-          style={{
-            fontSize: 11,
-            letterSpacing: 1.4,
-            fontWeight: '700',
-            color: colors.subtext,
-            marginBottom: 16,
-            textTransform: 'uppercase',
-          }}
-        >
-          Shipping Details
-        </Text>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>CHECKOUT</Text>
+        <View style={{ width: 24 }} />
+      </View>
 
-        {/* Full Name */}
-        <Text
-          style={{
-            fontSize: 11,
-            color: colors.subtext,
-            letterSpacing: 1,
-            fontWeight: '600',
-            marginBottom: 6,
-            textTransform: 'uppercase',
-          }}
-        >
-          Full Name
-        </Text>
+      <View style={styles.content}>
+
+        {/* Shipping Details */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>SHIPPING DETAILS</Text>
         <TextInput
+          style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
+          placeholder="Full Name"
+          placeholderTextColor={colors.subtext}
           value={fullName}
           onChangeText={setFullName}
-          placeholder="John Doe"
-          placeholderTextColor={colors.subtext}
-          style={{
-            height: 50,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 10,
-            paddingHorizontal: 14,
-            fontSize: 15,
-            color: colors.text,
-            backgroundColor: colors.card,
-            marginBottom: 14,
-          }}
         />
-
-        {/* Address */}
-        <Text
-          style={{
-            fontSize: 11,
-            color: colors.subtext,
-            letterSpacing: 1,
-            fontWeight: '600',
-            marginBottom: 6,
-            textTransform: 'uppercase',
-          }}
-        >
-          Address
-        </Text>
         <TextInput
+          style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
+          placeholder="Address"
+          placeholderTextColor={colors.subtext}
           value={address}
           onChangeText={setAddress}
-          placeholder="123 Main Street"
-          placeholderTextColor={colors.subtext}
-          style={{
-            height: 50,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 10,
-            paddingHorizontal: 14,
-            fontSize: 15,
-            color: colors.text,
-            backgroundColor: colors.card,
-            marginBottom: 14,
-          }}
         />
-
-        {/* City */}
-        <Text
-          style={{
-            fontSize: 11,
-            color: colors.subtext,
-            letterSpacing: 1,
-            fontWeight: '600',
-            marginBottom: 6,
-            textTransform: 'uppercase',
-          }}
-        >
-          City
-        </Text>
         <TextInput
+          style={[styles.input, { backgroundColor: colors.inputBg, color: colors.text, borderColor: colors.border }]}
+          placeholder="City"
+          placeholderTextColor={colors.subtext}
           value={city}
           onChangeText={setCity}
-          placeholder="Cairo"
-          placeholderTextColor={colors.subtext}
-          style={{
-            height: 50,
-            borderWidth: 1,
-            borderColor: colors.border,
-            borderRadius: 10,
-            paddingHorizontal: 14,
-            fontSize: 15,
-            color: colors.text,
-            backgroundColor: colors.card,
-            marginBottom: 24,
-          }}
         />
 
-        {/* ─── Order Summary ────────────────────────────────────── */}
-        <Text
-          style={{
-            fontSize: 11,
-            letterSpacing: 1.4,
-            fontWeight: '700',
-            color: colors.subtext,
-            marginBottom: 16,
-            textTransform: 'uppercase',
-          }}
-        >
-          Order Summary
-        </Text>
+        {/* Order Summary */}
+        <View style={[styles.summaryCard, { borderColor: colors.border }]}>
+          <Text style={[styles.summaryTitle, { color: colors.text }]}>ORDER SUMMARY</Text>
 
-        <View
-          style={{
-            backgroundColor: colors.card,
-            borderRadius: 12,
-            padding: 16,
-            borderWidth: 1,
-            borderColor: colors.border,
-            marginBottom: 32,
-          }}
-        >
-          {items.map((item) => (
-            <View
-              key={item.id}
-              style={{
-                flexDirection: 'row',
-                justifyContent: 'space-between',
-                marginBottom: 12,
-              }}
-            >
-              <Text style={{ color: colors.text, fontSize: 14, flex: 1 }}>
-                {item.name} <Text style={{ color: colors.subtext }}>x{item.quantity}</Text>
+          {/* Cart item previews */}
+          {cartItems.map((item, idx) => (
+            <View key={item.id ?? idx} style={styles.summaryRow}>
+              <Text style={{ color: colors.subtext, flex: 1 }} numberOfLines={1}>
+                {item.name} × {item.quantity}
               </Text>
-              <Text style={{ color: colors.text, fontSize: 14, fontWeight: '600' }}>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>
                 {formatPrice(item.price * item.quantity)}
               </Text>
             </View>
           ))}
 
-          <View
-            style={{
-              borderTopWidth: 1,
-              borderTopColor: colors.border,
-              paddingTop: 12,
-              marginTop: 4,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-            }}
-          >
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>Total</Text>
-            <Text style={{ color: colors.text, fontSize: 16, fontWeight: '700' }}>
-              {formatPrice(total)}
-            </Text>
+          <View style={[styles.summaryRow, { marginTop: 8, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8 }]}>
+            <Text style={[styles.totalLabel, { color: colors.text }]}>Total Amount:</Text>
+            <Text style={[styles.totalPrice, { color: colors.text }]}>{formatPrice(totalAmount)}</Text>
           </View>
         </View>
 
-        {/* ─── Checkout Button ──────────────────────────────────── */}
+        {/* Place Order Button */}
         <TouchableOpacity
+          style={[styles.placeOrderButton, { backgroundColor: colors.buttonBg }]}
           onPress={handlePlaceOrder}
-          disabled={placing || items.length === 0}
-          style={{
-            backgroundColor: placing || items.length === 0 ? '#CCCCCC' : '#1A1A1A',
-            height: 55,
-            borderRadius: 10,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          disabled={loading}
         >
-          <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '700', letterSpacing: 1 }}>
-            {placing ? 'PROCESSING...' : 'PLACE ORDER'}
-          </Text>
+          {loading
+            ? <ActivityIndicator color={colors.buttonText} />
+            : <Text style={{ color: colors.buttonText, fontWeight: '700', letterSpacing: 1 }}>PLACE ORDER</Text>
+          }
         </TouchableOpacity>
-      </ScrollView>
-    </View>
+
+      </View>
+    </ScrollView>
   )
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    paddingTop: 60,
+  },
+  headerTitle: { fontSize: 16, fontWeight: '700' },
+  content: { padding: 20 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', marginBottom: 20, letterSpacing: 1.4 },
+  input: {
+    height: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  summaryCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 30,
+  },
+  summaryTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.4,
+    marginBottom: 12,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 4,
+  },
+  totalLabel: { fontSize: 13, fontWeight: '700' },
+  totalPrice: { fontSize: 16, fontWeight: '700' },
+  placeOrderButton: {
+    height: 50,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+})

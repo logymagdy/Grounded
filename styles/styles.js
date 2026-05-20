@@ -18,8 +18,8 @@ export const appStyles = StyleSheet.create({
     marginBottom: 10,
   },
   logo: {
-    width: 480,
-    height: 180,
+    width: 280, // Optimized from 480 to keep it from clipping on narrow device screens
+    height: 120,
   },
   welcomeTitle: {
     fontSize: 26,
@@ -58,11 +58,81 @@ export const appStyles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  // 🧠 FIXED: Added the completely missing signUpButton layout
+  signUpButton: {
+    backgroundColor: '#1A1A1A', // Sleek dark contrast for signing up
+    height: 58,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 10,
   },
   buttonTextWhite: {
     color: '#FFFFFF',
     fontSize: 17,
+    fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+
+  // ─── Auth Extras & Footers ─────────────────────────────────
+  forgotPasswordContainer: {
+    alignSelf: 'flex-end',
+    marginBottom: 20,
+    marginRight: 4,
+  },
+  forgotPasswordText: {
+    color: '#888888',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  orContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#EEEEEE',
+  },
+  orText: {
+    marginHorizontal: 10,
+    color: '#AAAAAA',
+    fontSize: 14,
+  },
+  socialButton: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+    height: 54,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  socialButtonText: {
+    color: '#1A1A1A',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  footerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 15,
+  },
+  footerText: {
+    color: '#888888',
+    fontSize: 14,
+  },
+  signUpLink: {
+    color: '#435d81',
+    fontSize: 14,
     fontWeight: '700',
   },
 

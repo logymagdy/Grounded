@@ -182,7 +182,6 @@ export default function ProfileScreen() {
     setNotifRegistered(true)
 
     // F6 — Schedule a local demo notification to confirm setup works
-    // FIX: trigger must use { type, seconds, repeats } object — { seconds: 2 } alone is deprecated
     await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Notifications enabled!',

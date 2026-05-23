@@ -1,6 +1,3 @@
-// 📁 screens/barcodeScreen.js
-// Dual mode: camera scan (dev build) + manual barcode entry (works in Expo Go)
-
 import React, { useState } from 'react'
 import {
   View,
@@ -106,7 +103,6 @@ export default function BarcodeScreen({ navigation }) {
     await lookupBarcode(data)
   }
 
-  // ─── Manual entry handler ─────────────────────────────────────────────────
   async function handleManualSubmit() {
     if (!manualCode.trim()) {
       Alert.alert('Enter a barcode number first.')
@@ -116,7 +112,6 @@ export default function BarcodeScreen({ navigation }) {
     await lookupBarcode(manualCode.trim())
   }
 
-  // ─── Permission: loading ───────────────────────────────────────────────────
   if (!permission) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
@@ -127,7 +122,6 @@ export default function BarcodeScreen({ navigation }) {
     )
   }
 
-  // ─── Permission: denied ────────────────────────────────────────────────────
   if (!permission.granted) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background, paddingHorizontal: 32 }]}>

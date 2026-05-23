@@ -9,8 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons'
 import { formatPrice } from '../lib/utils'
 
-// ✅ FIXED: was './useCartStore' — wrong path created a separate store instance
-// All screens must import from the same path for Zustand to share state
+
 import useCartStore from './useCartStore'
 
 import * as Haptics from 'expo-haptics'

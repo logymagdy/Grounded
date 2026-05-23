@@ -1,7 +1,3 @@
-// components/Account.js
-// Source: Supabase official docs — components/Account.tsx
-// Adapted: .tsx → .js | TypeScript types removed | Avatar import + usage removed (shop doesn't need profile photos)
-
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { View, Alert, TextInput, Text, TouchableOpacity } from 'react-native'
@@ -17,7 +13,6 @@ export default function Account({ userId, email }) {
     if (userId) getProfile()
   }, [userId])
 
-  // Supabase DB — reads profile row for the authenticated user
   async function getProfile() {
     try {
       setLoading(true)
@@ -44,7 +39,6 @@ export default function Account({ userId, email }) {
     }
   }
 
-  // Supabase DB — upserts profile row; JWT userId ensures user can only update their own row (RLS)
   async function updateProfile({ username, website }) {
     try {
       setLoading(true)

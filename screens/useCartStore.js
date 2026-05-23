@@ -7,7 +7,7 @@ const useCartStore = create(
     (set, get) => ({
       items: [],
 
-      // Add product or increment quantity if already in cart
+     
       addItem: (product) => {
         const existing = get().items.find((i) => i.id === product.id)
         if (existing) {
@@ -21,7 +21,7 @@ const useCartStore = create(
         }
       },
 
-      // Remove product from cart entirely
+      
       removeItem: (id) =>
         set({ items: get().items.filter((i) => i.id !== id) }),
 

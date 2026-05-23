@@ -33,12 +33,12 @@ const useCartStore = create(
           ),
         }),
 
-      // Clear all items (used after checkout)
+     
       clearCart: () => set({ items: [] }),
     }),
     {
-      name: 'cart-storage',                        // AsyncStorage key
-      storage: createJSONStorage(() => AsyncStorage), // persist with AsyncStorage
+      name: 'cart-storage',                        
+      storage: createJSONStorage(() => AsyncStorage), 
     }
   )
 )

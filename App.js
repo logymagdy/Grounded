@@ -1,4 +1,3 @@
-// 📁 App.js
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import {
@@ -27,6 +26,7 @@ import StoreLocatorScreen from './screens/storeLocatorScreen'
 import * as Network from 'expo-network'
 import * as Linking from 'expo-linking'
 import * as Notifications from 'expo-notifications'
+import * as Battery from 'expo-battery' // ✅ Battery-Aware Sync
 import { registerForPushNotificationsAsync } from './lib/notifications'
 
 const prefix = Linking.createURL('/')
@@ -104,10 +104,10 @@ export default function App() {
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(true)
+  const [isBatteryLow, setIsBatteryLow] = useState(false) // ✅ Battery state
   const notificationListener = useRef()
   const responseListener = useRef()
 
-  // F17 — Deep Linking config
   const linking = {
     prefixes: [prefix],
     config: {
@@ -132,7 +132,6 @@ export default function App() {
   }
 
   useEffect(() => {
-    // Supabase Auth — getSession on app start
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUserId = session?.user?.id ?? null
       setUserId(currentUserId)
@@ -140,14 +139,29 @@ export default function App() {
       if (currentUserId) registerForPushNotificationsAsync()
     })
 
-    // Supabase Auth — listen for login/logout
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUserId = session?.user?.id ?? null
       setUserId(currentUserId)
       if (currentUserId) registerForPushNotificationsAsync()
     })
 
+    // ✅ Battery-Aware Sync — check battery on startup
+    Battery.getBatteryLevelAsync().then((level) => {
+      if (level < 0.15) setIsBatteryLow(true)
+    })
+
+    // ✅ Battery-Aware Sync — listen for battery level changes
+    const batterySubscription = Battery.addBatteryLevelListener(({ batteryLevel }) => {
+      if (batteryLevel < 0.35) {
+        setIsBatteryLow(true)
+      } else {
+        setIsBatteryLow(false)
+      }
+    })
+
+    // ✅ Network check — paused when battery is critically low
     const networkInterval = setInterval(async () => {
+      if (isBatteryLow) return
       const state = await Network.getNetworkStateAsync()
       setIsConnected(state.isConnected && state.isInternetReachable)
     }, 4000)
@@ -163,8 +177,7 @@ export default function App() {
     return () => {
       subscription?.unsubscribe()
       clearInterval(networkInterval)
-      
-      // FIX: Replaced global calls with safe standard subscription teardowns (.remove())
+      batterySubscription.remove() 
       if (notificationListener.current) {
         notificationListener.current.remove()
       }
@@ -191,6 +204,15 @@ export default function App() {
           <Text style={styles.offlineBannerText}>YOU ARE OFFLINE</Text>
         </View>
       )}
+
+      {/* ✅ Low battery banner */}
+      {isBatteryLow && (
+        <View style={styles.batteryBanner}>
+          <Ionicons name="battery-dead-outline" size={14} color="#FFFFFF" />
+          <Text style={styles.batteryBannerText}>LOW BATTERY — SYNC PAUSED</Text>
+        </View>
+      )}
+
       <NavigationContainer linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {userId ? (
@@ -226,6 +248,23 @@ const styles = StyleSheet.create({
     zIndex: 999,
   },
   offlineBannerText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
+  // ✅ Battery banner style
+  batteryBanner: {
+    backgroundColor: '#B45309',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    zIndex: 999,
+  },
+  batteryBannerText: {
     color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',

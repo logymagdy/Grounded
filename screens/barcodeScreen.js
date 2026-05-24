@@ -98,6 +98,7 @@ export default function BarcodeScreen({ navigation }) {
 
   // ─── Camera scan handler ──────────────────────────────────────────────────
   async function handleBarcodeScanned({ data }) {
+    console.log('SCANNED:', data)
     if (scanned || searching) return
     setScanned(true)
     await lookupBarcode(data)
@@ -202,7 +203,7 @@ export default function BarcodeScreen({ navigation }) {
               color: colors.text,
               borderColor: colors.border,
             }]}
-            placeholder="e.g. 5901234123457"
+            placeholder="e.g. 012345678905"
             placeholderTextColor={colors.subtext}
             value={manualCode}
             onChangeText={setManualCode}

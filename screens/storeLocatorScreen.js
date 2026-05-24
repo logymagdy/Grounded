@@ -37,31 +37,31 @@ import * as Haptics from 'expo-haptics'
 const STORES = [
   {
     id: 1,
-    name: 'Heimplanet Cairo',
+    name: 'Grounded Cairo',
     description: 'Mall of Egypt, 6th of October',
     coordinate: { latitude: 29.9792, longitude: 30.9388 },
   },
   {
     id: 2,
-    name: 'Heimplanet Alexandria',
+    name: 'Grounded Alexandria',
     description: 'San Stefano Grand Plaza',
     coordinate: { latitude: 31.2357, longitude: 29.9553 },
   },
   {
     id: 3,
-    name: 'Heimplanet New Cairo',
+    name: 'Grounded New Cairo',
     description: 'Cairo Festival City Mall',
     coordinate: { latitude: 30.0131, longitude: 31.4061 },
   },
   {
     id: 4,
-    name: 'Heimplanet Maadi',
+    name: 'Grounded Maadi',
     description: 'Carrefour Maadi City Centre',
     coordinate: { latitude: 29.9625, longitude: 31.2572 },
   },
   {
     id: 5,
-    name: 'Heimplanet Zamalek',
+    name: 'Grounded Zamalek',
     description: '26th of July Corridor',
     coordinate: { latitude: 30.0619, longitude: 31.2178 },
   },
@@ -226,7 +226,7 @@ export default function StoreLocatorScreen({ navigation }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, gap: 8 }}>
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#476774' }} />
             <Text style={{ fontSize: 11, color: '#476774', fontWeight: '700', letterSpacing: 0.8 }}>
-              HEIMPLANET STORE
+             Grounded STORE
             </Text>
           </View>
         </View>

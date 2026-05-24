@@ -12,6 +12,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { Ionicons } from '@expo/vector-icons'
 
+
 import AuthScreen from './screens/authScreen'
 import SignUpScreen from './screens/signUpScreen'
 import ProductListScreen from './screens/productListScreen'
@@ -23,13 +24,19 @@ import ProfileScreen from './screens/ProfileScreen'
 import BarcodeScreen from './screens/barcodeScreen'
 import StoreLocatorScreen from './screens/storeLocatorScreen'
 
+
 import * as Network from 'expo-network'
+
 import * as Linking from 'expo-linking'
+
+
 import * as Notifications from 'expo-notifications'
-import * as Battery from 'expo-battery' // ✅ Battery-Aware Sync
 import { registerForPushNotificationsAsync } from './lib/notifications'
 
+import * as Battery from 'expo-battery'
+
 const prefix = Linking.createURL('/')
+
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -41,6 +48,7 @@ Notifications.setNotificationHandler({
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
+
 
 function ShopStack() {
   return (
@@ -104,9 +112,14 @@ export default function App() {
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isConnected, setIsConnected] = useState(true)
-  const [isBatteryLow, setIsBatteryLow] = useState(false) // ✅ Battery state
+  const [isBatteryLow, setIsBatteryLow] = useState(false)
+
   const notificationListener = useRef()
   const responseListener = useRef()
+
+  
+  const isBatteryLowRef = useRef(false)
+
 
   const linking = {
     prefixes: [prefix],
@@ -132,6 +145,7 @@ export default function App() {
   }
 
   useEffect(() => {
+    // ─── F1: Auth session check on startup ───────────────────────────────
     supabase.auth.getSession().then(({ data: { session } }) => {
       const currentUserId = session?.user?.id ?? null
       setUserId(currentUserId)
@@ -139,51 +153,51 @@ export default function App() {
       if (currentUserId) registerForPushNotificationsAsync()
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       const currentUserId = session?.user?.id ?? null
       setUserId(currentUserId)
       if (currentUserId) registerForPushNotificationsAsync()
     })
 
-    // ✅ Battery-Aware Sync — check battery on startup
     Battery.getBatteryLevelAsync().then((level) => {
-      if (level < 0.15) setIsBatteryLow(true)
+      const low = level < 0.15
+      setIsBatteryLow(low)
+      isBatteryLowRef.current = low  // keep ref in sync
     })
 
-    // ✅ Battery-Aware Sync — listen for battery level changes
+  
     const batterySubscription = Battery.addBatteryLevelListener(({ batteryLevel }) => {
-      if (batteryLevel < 0.35) {
-        setIsBatteryLow(true)
-      } else {
-        setIsBatteryLow(false)
-      }
+      const low = batteryLevel < 0.15
+      setIsBatteryLow(low)
+      isBatteryLowRef.current = low  
     })
 
-    // ✅ Network check — paused when battery is critically low
+  
     const networkInterval = setInterval(async () => {
-      if (isBatteryLow) return
+      if (isBatteryLowRef.current) return  
       const state = await Network.getNetworkStateAsync()
       setIsConnected(state.isConnected && state.isInternetReachable)
     }, 4000)
 
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('Notification received:', notification)
-    })
+ 
+    notificationListener.current =
+      Notifications.addNotificationReceivedListener((notification) => {
+        console.log('Notification received:', notification)
+      })
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('Notification tapped:', response)
-    })
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        console.log('Notification tapped:', response)
+      })
 
     return () => {
       subscription?.unsubscribe()
       clearInterval(networkInterval)
-      batterySubscription.remove() 
-      if (notificationListener.current) {
-        notificationListener.current.remove()
-      }
-      if (responseListener.current) {
-        responseListener.current.remove()
-      }
+      batterySubscription.remove()
+      notificationListener.current?.remove()
+      responseListener.current?.remove()
     }
   }, [])
 
@@ -197,6 +211,7 @@ export default function App() {
 
   return (
     <View style={styles.root}>
+
       {/* F10 — Offline banner */}
       {!isConnected && (
         <View style={styles.offlineBanner}>
@@ -205,7 +220,7 @@ export default function App() {
         </View>
       )}
 
-      {/* ✅ Low battery banner */}
+      {/* F12 — Low battery banner */}
       {isBatteryLow && (
         <View style={styles.batteryBanner}>
           <Ionicons name="battery-dead-outline" size={14} color="#FFFFFF" />
@@ -213,6 +228,7 @@ export default function App() {
         </View>
       )}
 
+      {/* F15 — linking prop enables deep link URL → screen navigation */}
       <NavigationContainer linking={linking}>
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {userId ? (
@@ -237,6 +253,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
+  // F10 — Offline banner
   offlineBanner: {
     backgroundColor: '#CC0000',
     paddingVertical: 8,
@@ -253,7 +270,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1.5,
   },
-  // ✅ Battery banner style
+  // F12 — Low battery banner
   batteryBanner: {
     backgroundColor: '#B45309',
     paddingVertical: 8,

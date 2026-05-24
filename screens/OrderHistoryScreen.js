@@ -1,13 +1,3 @@
-// 📁 screens/OrderHistoryScreen.js
-// ─────────────────────────────────────────────────────────────────────────────
-// CHANGES IN THIS VERSION:
-// ✅ FIXED: pull-to-refresh added with RefreshControl
-// ✅ FIXED: haptic feedback on refresh — expo-haptics
-// ✅ FIXED: status display now handles both 'Pending' and 'pending' cases
-// ✅ FIXED: added retry button on empty state
-// ✅ KEPT:  F15 pagination, F13 dark/light, F19 formatPrice
-// ─────────────────────────────────────────────────────────────────────────────
-
 import React, { useState, useCallback } from 'react'
 import {
   View,

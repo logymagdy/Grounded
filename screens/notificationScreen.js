@@ -11,33 +11,26 @@ export default function NotificationsScreen() {
   const [expoPushToken, setExpoPushToken] = useState('')
   const [notification, setNotification] = useState(null)
 
-  // Source: expo-notifications official docs — useRef for listeners
   const notificationListener = useRef()
   const responseListener = useRef()
 
   useEffect(() => {
-    // Source: expo-notifications official docs — register on mount
     registerForPushNotificationsAsync().then((token) => {
       if (token) setExpoPushToken(token)
     })
 
-    // Source: expo-notifications official docs — addNotificationReceivedListener
-    // Fires when notification is received while app is foregrounded
     notificationListener.current = Notifications.addNotificationReceivedListener(
       (notification) => {
         setNotification(notification)
       }
     )
 
-    // Source: expo-notifications official docs — addNotificationResponseReceivedListener
-    // Fires when user taps on a notification
     responseListener.current = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         console.log('Notification tapped:', response)
       }
     )
 
-    // Source: expo-notifications official docs — cleanup listeners on unmount
     return () => {
       notificationListener.current?.remove()
       responseListener.current?.remove()
@@ -172,7 +165,6 @@ const styles = StyleSheet.create({
     paddingTop: 40,
   },
 
-  // ─── Header ──────────────────────────────────────────────────────────────
   screenTitle: {
     fontSize: 22,
     fontWeight: '700',
@@ -186,7 +178,6 @@ const styles = StyleSheet.create({
     marginVertical: 20,
   },
 
-  // ─── Sections ────────────────────────────────────────────────────────────
   section: {
     marginBottom: 4,
   },
@@ -204,7 +195,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  // ─── Token ───────────────────────────────────────────────────────────────
   tokenText: {
     fontSize: 11,
     color: '#555555',
@@ -213,7 +203,6 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 
-  // ─── Buttons ─────────────────────────────────────────────────────────────
   button: {
     backgroundColor: '#1A1A1A',
     paddingVertical: 14,
@@ -227,7 +216,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // ─── Last Received ───────────────────────────────────────────────────────
   notifTitle: {
     fontSize: 15,
     fontWeight: '700',

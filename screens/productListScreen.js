@@ -15,12 +15,25 @@ import { supabase } from '../lib/supabase'
 import { Ionicons } from '@expo/vector-icons'
 import { appStyles } from '../styles/styles'
 import { formatPrice } from '../lib/utils'
-
 import useCartStore from './useCartStore'
-
 import * as Haptics from 'expo-haptics'
+import * as FileSystem from 'expo-file-system'
+import * as Battery from 'expo-battery'
 
 const CATEGORIES = ['All', 'Tents', 'Bags', 'Apparel', 'Equipment']
+const CACHE_PATH = FileSystem.documentDirectory + 'products_cache.json'
+
+function sanitiseForCache(products) {
+  return products.map((p) => ({
+    id: p.id,
+    name: p.name ?? '',
+    price: p.price ?? 0,
+    category: p.category ?? '',
+    image_url: p.image_url ?? '',
+    stock: p.stock ?? 0,
+    barcode: p.barcode ?? null,
+  }))
+}
 
 export default function ProductList({ navigation }) {
   const [products, setProducts] = useState([])
@@ -49,7 +62,6 @@ export default function ProductList({ navigation }) {
     }, [selectedCategory])
   )
 
-  // F16 — Realtime stock subscription
   useEffect(() => {
     const channel = supabase
       .channel('realtime-stock')
@@ -72,27 +84,81 @@ export default function ProductList({ navigation }) {
     }
   }
 
-  // ─── F2: Fetch products ───────────────────────────────────────────────────
   async function fetchProducts() {
     try {
       setLoading(true)
+
+      const batteryLevel = await Battery.getBatteryLevelAsync()
+      const batteryState = await Battery.getBatteryStateAsync()
+      const isCharging =
+        batteryState === Battery.BatteryState.CHARGING ||
+        batteryState === Battery.BatteryState.FULL
+
+      if (batteryLevel < 0.15 && !isCharging) {
+        const fileInfo = await FileSystem.getInfoAsync(CACHE_PATH)
+        if (fileInfo.exists) {
+          const cached = await FileSystem.readAsStringAsync(CACHE_PATH, {
+            encoding: FileSystem.EncodingType.UTF8,
+          })
+          const cachedData = JSON.parse(cached)
+          setProducts(cachedData)
+          const initialStock = {}
+          cachedData.forEach((p) => { initialStock[p.id] = p.stock !== undefined ? p.stock : 5 })
+          setStockMap(initialStock)
+          Alert.alert('Battery Saver', 'Low battery — showing cached products.')
+        }
+        setLoading(false)
+        return
+      }
+
       let query = supabase.from('products').select('*')
       if (selectedCategory !== 'All') {
         query = query.eq('category', selectedCategory)
       }
+
       const { data, error } = await query
+
       if (error) {
         Alert.alert('Database Error', error.message)
         return
       }
+
       if (data) {
         setProducts(data)
+
         const initialStock = {}
         data.forEach((p) => { initialStock[p.id] = p.stock !== undefined ? p.stock : 5 })
         setStockMap(initialStock)
+
+        try {
+          const safe = sanitiseForCache(data)
+          await FileSystem.writeAsStringAsync(
+            CACHE_PATH,
+            JSON.stringify(safe),
+            { encoding: FileSystem.EncodingType.UTF8 }
+          )
+        } catch (cacheWriteError) {
+          console.log('Cache write skipped:', cacheWriteError.message)
+        }
       }
     } catch (error) {
-      Alert.alert('Error', error.message)
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(CACHE_PATH)
+        if (fileInfo.exists) {
+          const cached = await FileSystem.readAsStringAsync(CACHE_PATH, {
+            encoding: FileSystem.EncodingType.UTF8,
+          })
+          const cachedData = JSON.parse(cached)
+          setProducts(cachedData)
+          const initialStock = {}
+          cachedData.forEach((p) => { initialStock[p.id] = p.stock !== undefined ? p.stock : 5 })
+          setStockMap(initialStock)
+        } else {
+          Alert.alert('Error', error.message)
+        }
+      } catch (cacheError) {
+        Alert.alert('Error', error.message)
+      }
     } finally {
       setLoading(false)
     }
@@ -112,50 +178,34 @@ export default function ProductList({ navigation }) {
     }
   }
 
-  // ─── F11: Toggle wishlist — add or remove from Supabase wishlist table ────
-  // Source: supabase-js docs — .insert() and .delete()
-  // Heart turns red instantly (optimistic update) then syncs with DB
   async function toggleWishlist(productId) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
     if (wishlist.includes(productId)) {
-      // ─── Remove from wishlist ─────────────────────────────────────────────
-      // Optimistic: remove from local state immediately
       setWishlist((prev) => prev.filter((id) => id !== productId))
-
       const { error } = await supabase
         .from('wishlist')
         .delete()
         .eq('user_id', user.id)
         .eq('product_id', productId)
-
       if (error) {
-        // Revert on failure
         setWishlist((prev) => [...prev, productId])
         Alert.alert('Error', error.message)
       }
     } else {
-      // ─── Add to wishlist ──────────────────────────────────────────────────
-      // Optimistic: add to local state immediately
       setWishlist((prev) => [...prev, productId])
-
-      // F14 — Haptic on wishlist add
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-
       const { error } = await supabase
         .from('wishlist')
         .insert({ user_id: user.id, product_id: productId })
-
       if (error) {
-        // Revert on failure
         setWishlist((prev) => prev.filter((id) => id !== productId))
         Alert.alert('Error', error.message)
       }
     }
   }
 
-  // ─── F5 + F14: Add to cart with haptic ───────────────────────────────────
   function handleAddToCart(product) {
     addItem(product)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
@@ -186,7 +236,6 @@ export default function ProductList({ navigation }) {
             </View>
           )}
 
-          {/* F16 — Stock badge */}
           {currentStock !== undefined && (
             <View style={[appStyles.stockBadge, { backgroundColor: isOutOfStock ? '#CC0000' : '#476774' }]}>
               <Text style={appStyles.stockBadgeText}>
@@ -195,9 +244,6 @@ export default function ProductList({ navigation }) {
             </View>
           )}
 
-          {/* F11 — Wishlist heart button
-              Tapping heart → toggleWishlist() → inserts/deletes from Supabase wishlist table
-              Heart fills red instantly via local state, then syncs with DB */}
           <TouchableOpacity
             onPress={() => toggleWishlist(item.id)}
             style={appStyles.wishlistBtn}
@@ -220,8 +266,6 @@ export default function ProductList({ navigation }) {
           <Text style={[appStyles.productPrice, { color: colors.text }]}>
             {formatPrice(item.price)}
           </Text>
-
-          {/* F5 — Add to cart */}
           <TouchableOpacity
             onPress={() => handleAddToCart(item)}
             disabled={isOutOfStock}
@@ -239,7 +283,6 @@ export default function ProductList({ navigation }) {
   return (
     <View style={[appStyles.container, { backgroundColor: colors.background }]}>
 
-      {/* Header */}
       <View style={appStyles.header}>
         <View style={{ flex: 1, alignItems: 'flex-start' }}>
           <TouchableOpacity style={appStyles.backBtn} onPress={handleLogout}>
@@ -267,7 +310,6 @@ export default function ProductList({ navigation }) {
         </View>
       </View>
 
-      {/* Category filters */}
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <ScrollView
           horizontal
@@ -292,7 +334,6 @@ export default function ProductList({ navigation }) {
         </ScrollView>
       </View>
 
-      {/* Product grid */}
       {loading ? (
         <View style={appStyles.loadingContainer}>
           <ActivityIndicator color={colors.text} />

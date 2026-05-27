@@ -80,7 +80,8 @@
           "enableBackgroundRemoteNotifications": true
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-barcode-scanner"
     ],
     "extra": {
       "eas": {

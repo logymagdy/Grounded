@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ export default function BarcodeScreen({ navigation }) {
   const [searching, setSearching]       = useState(false)
   const [manualCode, setManualCode]     = useState('')
 
+  const isProcessingRef = useRef(false)
+
   const addItem = useCartStore((state) => state.addItem)
 
   const colorScheme = useColorScheme()
@@ -36,21 +38,20 @@ export default function BarcodeScreen({ navigation }) {
   }
 
   function resetScan() {
+    isProcessingRef.current = false
     setScanned(false)
     setSearching(false)
     setManualCode('')
   }
 
-  // ─── Core lookup — shared by camera scan AND manual entry ─────────────────
   async function lookupBarcode(data) {
-    if (searching) return
     setSearching(true)
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
 
     try {
       const { data: products, error } = await supabase
         .from('products')
-        .select('id, name, price, category, image_url,barcode')
+        .select('id, name, price, category, image_url, barcode')
         .eq('barcode', data.trim())
         .limit(1)
 
@@ -67,16 +68,6 @@ export default function BarcodeScreen({ navigation }) {
 
       const product = products[0]
 
-      if (product.stock === 0) {
-        Alert.alert(
-          'Out of Stock',
-          `${product.name} is currently out of stock.`,
-          [{ text: 'Scan Again', onPress: resetScan }]
-        )
-        return
-      }
-
-      // ✅ Add to cart directly
       addItem(product)
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
 
@@ -96,10 +87,10 @@ export default function BarcodeScreen({ navigation }) {
     }
   }
 
-  // ─── Camera scan handler ──────────────────────────────────────────────────
   async function handleBarcodeScanned({ data }) {
-    console.log('SCANNED:', data)
-    if (scanned || searching) return
+ 
+    if (isProcessingRef.current) return
+    isProcessingRef.current = true
     setScanned(true)
     await lookupBarcode(data)
   }
@@ -109,6 +100,8 @@ export default function BarcodeScreen({ navigation }) {
       Alert.alert('Enter a barcode number first.')
       return
     }
+    if (isProcessingRef.current) return
+    isProcessingRef.current = true
     setScanned(true)
     await lookupBarcode(manualCode.trim())
   }
@@ -142,7 +135,6 @@ export default function BarcodeScreen({ navigation }) {
       style={{ flex: 1, backgroundColor: '#000000' }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Camera */}
       <CameraView
         style={StyleSheet.absoluteFillObject}
         facing="back"
@@ -152,7 +144,6 @@ export default function BarcodeScreen({ navigation }) {
         }}
       />
 
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
@@ -160,7 +151,6 @@ export default function BarcodeScreen({ navigation }) {
         <Text style={styles.headerTitle}>SCAN BARCODE</Text>
       </View>
 
-      {/* Scan frame */}
       <View style={styles.frameWrapper}>
         <View style={styles.frame}>
           {[
@@ -182,16 +172,12 @@ export default function BarcodeScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Status */}
       <View style={styles.statusWrapper}>
         <Text style={styles.statusText}>
           {searching ? 'SEARCHING CATALOG...' : 'ALIGN BARCODE IN FRAME'}
         </Text>
       </View>
 
-      {/* ─── Manual entry panel (bottom) ──────────────────────────────────────
-          Works in Expo Go — type the barcode number and tap Search.
-          Same lookupBarcode() function as camera scan.          */}
       <View style={[styles.manualPanel, { backgroundColor: colors.background }]}>
         <Text style={[styles.manualLabel, { color: colors.subtext }]}>
           OR ENTER BARCODE MANUALLY
@@ -297,7 +283,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
   },
-  // Manual entry
   manualPanel: {
     position: 'absolute',
     bottom: 0,

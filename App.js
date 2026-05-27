@@ -162,14 +162,14 @@ export default function App() {
     })
 
     Battery.getBatteryLevelAsync().then((level) => {
-      const low = level < 0.15
+      const low = level < 0.72
       setIsBatteryLow(low)
       isBatteryLowRef.current = low  // keep ref in sync
     })
 
   
     const batterySubscription = Battery.addBatteryLevelListener(({ batteryLevel }) => {
-      const low = batteryLevel < 0.15
+      const low = batteryLevel < 0.72
       setIsBatteryLow(low)
       isBatteryLowRef.current = low  
     })
@@ -178,7 +178,7 @@ export default function App() {
     const networkInterval = setInterval(async () => {
       if (isBatteryLowRef.current) return  
       const state = await Network.getNetworkStateAsync()
-      setIsConnected(state.isConnected && state.isInternetReachable)
+setIsConnected(state.isConnected === true && state.isInternetReachable === true)
     }, 4000)
 
  
@@ -253,7 +253,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
   },
-  // F10 — Offline banner
+  
   offlineBanner: {
     backgroundColor: '#CC0000',
     paddingVertical: 8,
@@ -263,6 +263,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     zIndex: 999,
+    margin:50,
   },
   offlineBannerText: {
     color: '#FFFFFF',
@@ -286,5 +287,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 1.5,
+     marginTop: 50,
   },
 })

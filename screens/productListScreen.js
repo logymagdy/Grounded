@@ -17,7 +17,7 @@ import { appStyles } from '../styles/styles'
 import { formatPrice } from '../lib/utils'
 import useCartStore from './useCartStore'
 import * as Haptics from 'expo-haptics'
-import * as FileSystem from 'expo-file-system'
+import * as FileSystem from 'expo-file-system/legacy'
 import * as Battery from 'expo-battery'
 
 const CATEGORIES = ['All', 'Tents', 'Bags', 'Apparel', 'Equipment']
@@ -94,7 +94,7 @@ export default function ProductList({ navigation }) {
         batteryState === Battery.BatteryState.CHARGING ||
         batteryState === Battery.BatteryState.FULL
 
-      if (batteryLevel < 0.15 && !isCharging) {
+      if (batteryLevel < 0.72 && !isCharging) {
         const fileInfo = await FileSystem.getInfoAsync(CACHE_PATH)
         if (fileInfo.exists) {
           const cached = await FileSystem.readAsStringAsync(CACHE_PATH, {
